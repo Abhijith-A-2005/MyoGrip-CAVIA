@@ -39,3 +39,4 @@ ultralytics==8.4.146
 ultralytics-platform==0.1.34
 ultralytics-thop==2.1.6
 urllib3==2.7.0
+python-dotenv==1.0.0

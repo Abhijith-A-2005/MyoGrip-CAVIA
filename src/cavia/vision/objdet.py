@@ -1,10 +1,9 @@
 from ultralytics import YOLO
-import os
-import time
-import numpy as np
-from mjpeg_stream import LatestMJPEGStream
 import cv2
 import json
+import time
+import numpy as np
+from camera_source import CameraSettings, CameraSource
 from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
 from regions import get_targeted_region
 
@@ -17,16 +16,9 @@ REGION_DISPLAY_CONF_THRESHOLD = 0.5
 COLOR_TARGETED = (0, 255, 0)      # green
 COLOR_NOT_TARGETED = (0, 165, 255)  # orange
 
-CAMERA_IP = os.environ.get("CAVIA_CAMERA_IP")
-
-if not CAMERA_IP:
-    raise SystemExit(
-        "Set CAVIA_CAMERA_IP to the camera IP before running objdet.py"
-    )
-
-CAMERA_URL = f"http://{CAMERA_IP}:81/stream"
-
-MAX_FRAME_AGE = 1.0
+# .env lives beside camera_source.py; mode changes via L / X / A are runtime-only.
+camera_settings = CameraSettings.from_env()
+MAX_FRAME_AGE = camera_settings.max_frame_age
 
 
 def clamp_box(box, frame_shape):
@@ -106,219 +98,143 @@ WINDOW = "CAVIA - Object Detection"
 
 def quit_requested():
     key = cv2.waitKey(10) & 0xFF
-
-    return (
-        key in (ord("q"), 27)
-        or cv2.getWindowProperty(
-            WINDOW, cv2.WND_PROP_VISIBLE
-        ) < 1
-    )
+    if ord("A") <= key <= ord("Z"):
+        key += ord("a") - ord("A")
+    modes = {ord("l"): "laptop", ord("x"): "xiao", ord("a"): "auto"}
+    if key in modes:
+        stream.set_mode(modes[key])
+    return (key in (ord("q"), 27)
+            or cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1)
 
 
 def camera_status_frame(message):
-    # Replace old detections with a clear connection-status screen.
     image = np.zeros((480, 640, 3), dtype=np.uint8)
-
-    cv2.putText(
-        image, message, (15, 40),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6, (0, 0, 255), 2
-    )
-    cv2.putText(
-        image,
-        "Waiting for a fresh camera frame. Q / Esc: quit",
-        (15, 80),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.5, (255, 255, 255), 1
-    )
-
+    cv2.putText(image, message, (15, 40), cv2.FONT_HERSHEY_SIMPLEX,
+                0.6, (0, 0, 255), 2)
+    cv2.putText(image, "L: laptop | X: XIAO | A: auto | Q / Esc: quit",
+                (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                (255, 255, 255), 1)
     return image
 
 
-stream = LatestMJPEGStream(CAMERA_URL).start()
+stream = CameraSource(camera_settings).start()
 last_sequence = -1
-
+last_session = None
 try:
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
-
     while True:
         snapshot = stream.snapshot()
         frame = snapshot["frame"]
-
-        stale = (
-            time.monotonic() - snapshot["received_at"]
-            > MAX_FRAME_AGE
-        )
+        stale = time.monotonic() - snapshot["received_at"] > MAX_FRAME_AGE
 
         if frame is None or stale:
-            # A camera outage must not preserve the previous lock.
+            # A camera outage must not carry a previous lock into recovery.
             tracker.reset()
             emit(tracker.out)
-
-            message = (
-                snapshot["status"]
-                if frame is None else "STALE CAMERA"
-            )
+            message = f"{snapshot['source']} / {stream.mode}: {snapshot['status']}"
             cv2.imshow(WINDOW, camera_status_frame(message))
-
             if quit_requested():
                 break
-
             continue
 
-        # Do not count the same received frame as multiple observations.
+        # Never carry a lock/history from one camera (or camera session) to another.
+        if snapshot["session"] != last_session:
+            tracker.reset()
+            emit(tracker.out)
+            last_session = snapshot["session"]
+            last_sequence = -1
+            print(f"[CAMERA] Active: {snapshot['source']}", flush=True)
+
+        # Avoid counting the same received frame as several observations.
         if snapshot["sequence"] == last_sequence:
             if quit_requested():
                 break
-
             continue
-
         last_sequence = snapshot["sequence"]
 
-        # Existing detection pipeline: process raw pixels, draw on a copy.
+        # frame stays raw; all drawing goes on display_frame
         display_frame = frame.copy()
         reticle_point = draw_reticle(display_frame)
 
         results = model(frame, verbose=False)[0]
 
-        candidate = None
+        candidate = None      # reset every frame
         best_area = None
 
         for box in results.boxes:
             cls_name = model.names[int(box.cls[0])]
             conf = float(box.conf[0])
 
-            if (
-                cls_name not in TARGET_CLASSES
-                or conf <= REGION_DISPLAY_CONF_THRESHOLD
-            ):
+            if cls_name not in TARGET_CLASSES or conf <= REGION_DISPLAY_CONF_THRESHOLD:
                 continue
 
             x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-            x1, y1, x2, y2 = clamp_box(
-                (x1, y1, x2, y2), frame.shape
-            )
-
+            x1, y1, x2, y2 = clamp_box((x1, y1, x2, y2), frame.shape)
             if x2 <= x1 or y2 <= y1:
                 continue
 
-            targeted = reticle_overlaps_box(
-                reticle_point, (x1, y1, x2, y2)
-            )
+            targeted = reticle_overlaps_box(reticle_point, (x1, y1, x2, y2))
+            box_color = COLOR_TARGETED if targeted else COLOR_NOT_TARGETED
 
-            box_color = (
-                COLOR_TARGETED if targeted
-                else COLOR_NOT_TARGETED
-            )
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), box_color, 2)
+            cv2.putText(display_frame, f"{cls_name} {conf:.2f}", (x1, max(y1 - 8, 15)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, box_color, 2)
 
-            cv2.rectangle(
-                display_frame,
-                (x1, y1), (x2, y2),
-                box_color, 2
-            )
-            cv2.putText(
-                display_frame,
-                f"{cls_name} {conf:.2f}",
-                (x1, max(y1 - 8, 15)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6, box_color, 2
-            )
-
-            contour, orientation = get_contour_and_orientation(
-                frame, (x1, y1, x2, y2)
-            )
-
+            contour, orientation = get_contour_and_orientation(frame, (x1, y1, x2, y2))
             if contour is not None and orientation is not None:
-                cv2.drawContours(
-                    display_frame,
-                    [contour + [x1, y1]],
-                    -1, (255, 0, 0), 1
-                )
-                cv2.putText(
-                    display_frame,
-                    f"{orientation:.0f} deg",
-                    (x1, max(y1 - 30, 30)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6, (255, 0, 0), 2
-                )
+                cv2.drawContours(display_frame, [contour + [x1, y1]], -1, (255, 0, 0), 1)
+                cv2.putText(display_frame, f"{orientation:.0f} deg", (x1, max(y1 - 30, 30)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
             if targeted:
                 area = (x2 - x1) * (y2 - y1)
-
                 if best_area is None or area < best_area:
-                    region, margin = get_targeted_region(
-                        cls_name,
-                        (x1, y1, x2, y2),
-                        reticle_point,
-                    )
-
+                    region, margin = get_targeted_region(cls_name, (x1, y1, x2, y2), reticle_point)
                     if region:
                         best_area = area
                         candidate = {
                             "object": cls_name,
                             "region": region,
                             "det_conf": conf,
-                            "reticle_score": min(
-                                1.0, margin / 0.25
-                            ),
+                            "reticle_score": min(1.0, margin / 0.25),
                         }
 
-        # YOLO may take time. Reject an expired frame or a result
-        # belonging to a camera connection that has since restarted.
+        # Suppress a result if this frame expired or the camera reconnected
+        # while YOLO was running. This does not change region/lock algorithms.
         current = stream.snapshot()
-
-        if (
-            current["frame"] is None
-            or current["session"] != snapshot["session"]
-            or time.monotonic() - snapshot["received_at"]
-            > MAX_FRAME_AGE
-        ):
+        if (current["frame"] is None
+                or current["session"] != snapshot["session"]
+                or time.monotonic() - snapshot["received_at"] > MAX_FRAME_AGE):
             tracker.reset()
             emit(tracker.out)
-
-            cv2.imshow(
-                WINDOW,
-                camera_status_frame("STALE / DISCONNECTED")
-            )
-
+            display_frame = camera_status_frame("STALE / DISCONNECTED")
+            cv2.imshow(WINDOW, display_frame)
             if quit_requested():
                 break
-
             continue
 
-        # Existing tracking algorithm, once per fresh camera frame.
+        # once per fresh camera frame, AFTER the box loop
         out = tracker.update(candidate)
         emit(out)
 
         color = STATE_COLORS[out["state"]]
-
-        cv2.putText(
-            display_frame,
-            out["state"],
-            (10, 25),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7, color, 2
-        )
-
+        cv2.putText(display_frame, out["state"], (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
         if out["object"]:
-            cv2.putText(
-                display_frame,
-                f"{out['object']} / {out['region']}  "
-                f"conf {out['region_confidence']:.2f}",
-                (10, 55),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7, color, 2
-            )
+            cv2.putText(display_frame,
+                        f"{out['object']} / {out['region']}  conf {out['region_confidence']:.2f}",
+                        (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
+
+        cv2.putText(display_frame,
+                    f"{snapshot['source']} | {stream.mode.upper()} | L laptop / X XIAO / A auto",
+                    (10, display_frame.shape[0] - 12),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
         cv2.imshow(WINDOW, display_frame)
-
         if quit_requested():
             break
-
 except KeyboardInterrupt:
     pass
-
 finally:
     stream.close()
     cv2.destroyAllWindows()
