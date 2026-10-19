@@ -1,0 +1,35 @@
+# Python
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local configuration
+.env
+**/.env
+
+# ML models and generated outputs
+*.pt
+**/runs/
+**/outputs/
+**/captures/
+
+# Generated Repomix files
+*-repomix-output.xml
+
+# ESP-IDF generated files
+**/build/
+**/build-*/
+**/build-idf-*/
+**/.cache/
+**/.vscode/
+**/managed_components/
+**/sdkconfig.old
+
+# Generated firmware test recordings
+src/firmware/npg-lite-controller/test/*.csv
+
+# Logs and operating-system files
+*.log
+.DS_Store
+Thumbs.db
