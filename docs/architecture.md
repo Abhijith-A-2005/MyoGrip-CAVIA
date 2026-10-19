@@ -33,7 +33,7 @@ Status tags: **CONFIRMED** = agreed and frozen · **ASSUMPTION** = working value
 A **keyboard EMG emulator** and **CSV replay** stand in for real EMG until the device path works,
 so CAVIA, the dashboard and the evaluation pipeline never wait on hardware.
 
-## 2. Laptop runtime — target package layout
+## 2. Laptop runtime: target package layout
 
 ```text
 src/cavia/
@@ -70,7 +70,7 @@ without the XIAO can develop; trials use the XIAO only.
 **XIAO sensor profile (`src/firmware/xiao-camera/xiao_camera_profile.h`):** VGA 640×480, JPEG quality 12,
 horizontal mirror + vertical flip (mount orientation), AEC2 on.
 
-**Controlled object set — OPEN.** Spec: mug, bottle, pen, spoon, phone, remote, small box.
+**Controlled object set: OPEN.** Spec: mug, bottle, pen, spoon, phone, remote, small box.
 COCO (current YOLO) has no pen or box; code uses `toothbrush` and `book` as proxies.
 Options: keep COCO proxies (zero training cost) or fine-tune on a small custom set.
 
@@ -82,7 +82,7 @@ orientation; cup-handle side is inferred only from horizontal offset. Upgrade pa
 Triggered once when vision reaches `LOCKED`. Produces a **frozen menu snapshot**: small camera motion
 must not reorder an open menu. Fresh interpretation only via HE → CAVIA Home.
 
-### 4.1 Candidate generation — mechanical compatibility (ASSUMPTION, calibrate on real hand)
+### 4.1 Candidate generation: mechanical compatibility (ASSUMPTION, calibrate on real hand)
 
 | Object / region | Compatible grips (default order) |
 |---|---|
@@ -166,17 +166,21 @@ Gaps in current `myogrip_fsm.c` (to close before hardware integration):
 **ASSUMPTION:** 250 Hz sampling is enough for envelope-based events (Test 1 shows separation);
 500 Hz is a FUTURE OPTION if SF/LF or SE/LE/HE overlap is too high.
 
-**OPEN:** Channel 3 role — currently favoured for motion-artifact / intent validation, not a new command.
+**OPEN:** Channel 3 role. Currently favoured for motion-artifact / intent validation, not a new command.
 
 ## 6. Dashboard (Adwaith & Meghna)
 
-FastAPI serves a static web UI, an MJPEG endpoint of the annotated frame (reticle, box, region, lock state),
-and a WebSocket that pushes the latest state from the bus at ~10–20 Hz.
+FastAPI serves the built web UI (`src/cavia/dashboard/web/dist/`), an MJPEG endpoint of the raw camera
+frame, and a WebSocket that pushes bus state to the browser (protocol: `docs/interfaces.md` §8).
+The browser draws the overlays itself (reticle, object box, region highlight), so they match the theme.
 
-Panels: live camera · detected object · locked region · vision confidence · adaptive menu · full menu ·
-selected grip · last EMG event · FSM state · grip progress bar · system status (camera FPS/latency,
-BLE link, battery, condition, user, trial). Experimenter controls: select user, condition, start/stop trial,
-mark trial outcome (grasp success / failure).
+Panels: wrist camera, target (object, region, confidence ring, evidence bars), hand (state rail, grip
+progress column, active grip), Adaptive and Full menus side by side with "moves to reach" on every item,
+EMG timeline (gestures and activity duration bars), system status. Experimenter drawer: participant,
+condition, start/end trial, grasp outcome, notes. A second page holds the evaluation results.
+
+Two dashboards are being built in parallel from `DASHBOARD_BRIEF.md` (Adwaith on `feat/cavia-dashboard`,
+Meghna separately); the team keeps the better one (D18).
 
 ## 7. Evaluation (Adwaith & Meghna)
 

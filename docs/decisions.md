@@ -4,6 +4,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Date | Decision | Why |
 |---|---|---|---|
+| D18 | 2026-10-19 | Dashboard (`feat/cavia-dashboard`): React + Vite on a fixed 1920×1080 stage scaled to the window; hash routes; focus is a pure function of FSM state; mock mode runs a TypeScript port of the FSM checked against `tests/fsm/vectors.json`. Two dashboards are built in parallel from the brief and the better one is kept | Same layout on projector and laptops; no backend routing rules; mock behaves exactly like the real FSM |
 | D17 | 2026-10-19 | Experimenter abort (BLE `HOME`) during a grip runs the controlled opening first, then HOME; FSM speeds must be > 0; negative tick time is ignored | A plain reset would leave the hand closed in HOME, where extension is ignored, and the next grip would start half-closed |
 | D16 | 2026-10-19 | (a) LF confirm no longer sets the release gate: continued flexion after LF closes immediately. (b) Reaching fully open stays in actuation; the user may close again. Only HE leaves a grip (controlled opening → Full Menu). Supersedes D7's "fully open → Full Menu" | Faster, more natural grasping; re-grasp with the same grip without re-selecting. INVALID still requires rest |
 | D15 | 2026-10-19 | Keyboard EMG emulator uses W SE (up), S SF (down), A LF (confirm), D LE (full menu), E HE (back); in actuation, holding A / D = flexor / extensor activity. Simulator is a pygame-ce window (`sim` extra) for real key-up events | Matches the vertical menu; one key per gesture family makes hold-to-close feel like sustained EMG |
@@ -14,13 +15,13 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 | D10 | 2026-10-19 | FSM authority and gesture detection live on NPG firmware; laptop mirrors state. Prototype in Python first | Actuation must not depend on BLE latency/dropouts |
 | D9 | 2026-10-19 | Integration-first: keyboard EMG emulator + CSV replay so CAVIA, dashboard and evaluation run before hardware is ready | Late integration is the top project risk |
 | D8 | 2026-10-19 | All evaluation metrics are computed from JSONL session logs | Reproducible analysis; no hand-tallied numbers |
-| D7 | — | ~~Fully open after actuation returns to Full Menu~~ (superseded by D16); Full Menu + HE → CAVIA Home | Re-grip same object without re-analysis |
-| D6 | — | Actuation = Closing / Holding / Opening with constant-speed, duration-controlled `grip_progress` | Predictable, safe; no amplitude-proportional speed |
-| D5 | — | HE is Back/Cancel, not E-stop; physical servo-power cutoff is the E-stop | Software gesture is not a safety guarantee |
-| D4 | — | Full Menu contains all calibrated grips, not just region-compatible ones | Explicit override, preserves agency, measures CAVIA disagreement |
-| D3 | — | Gesture map: SF Next, SE Previous, LF Confirm, LE Full Menu, HE Back | Frozen FSM (`assets/figures/emg-fsm.png`) |
-| D2 | — | No FSR, EEG/ErrP, EOG or ECG in the MVP | Scope and feasibility |
-| D1 | — | Camera = XIAO ESP32-S3 Sense (OV2640); servo driver = PCA9685; 5 × MG996R-class servos | Hardware checkpoint |
+| D7 | earlier | ~~Fully open after actuation returns to Full Menu~~ (superseded by D16); Full Menu + HE → CAVIA Home | Re-grip same object without re-analysis |
+| D6 | earlier | Actuation = Closing / Holding / Opening with constant-speed, duration-controlled `grip_progress` | Predictable, safe; no amplitude-proportional speed |
+| D5 | earlier | HE is Back/Cancel, not E-stop; physical servo-power cutoff is the E-stop | Software gesture is not a safety guarantee |
+| D4 | earlier | Full Menu contains all calibrated grips, not just region-compatible ones | Explicit override, preserves agency, measures CAVIA disagreement |
+| D3 | earlier | Gesture map: SF Next, SE Previous, LF Confirm, LE Full Menu, HE Back | Frozen FSM (`assets/figures/emg-fsm.png`) |
+| D2 | earlier | No FSR, EEG/ErrP, EOG or ECG in the MVP | Scope and feasibility |
+| D1 | earlier | Camera = XIAO ESP32-S3 Sense (OV2640); servo driver = PCA9685; 5 × MG996R-class servos | Hardware checkpoint |
 
 ## Open questions
 
@@ -31,4 +32,4 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 | Q3 | Channel 3 role (artifact rejection / intent validation)? | EMG owner | Week 3 |
 | Q4 | Final menu-policy thresholds (V, N, p1, margin) | Abhijith & Adwaith | Pilot, Week 4 |
 | Q5 | Participants: how many, who, ethics/consent form | Team + guide | Week 3 |
-| ~~Q6~~ | Resolved by D16: fully open no longer leaves actuation | — | — |
+| ~~Q6~~ | Resolved by D16: fully open no longer leaves actuation | n/a | n/a |

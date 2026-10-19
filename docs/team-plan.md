@@ -6,8 +6,8 @@ Working end date: **2026-11-22** (5 weeks from 2026-10-19). Status: ☐ todo · 
 
 | Stream | Owners | Scope |
 |---|---|---|
-| FSM — laptop side | Adwaith | Python reference FSM, simulator, CAVIA ↔ FSM integration |
-| FSM — device side | Abhijith | `myogrip_fsm.c`, gesture detector, BLE protocol |
+| FSM, laptop side | Adwaith | Python reference FSM, simulator, CAVIA ↔ FSM integration |
+| FSM, device side | Abhijith | `myogrip_fsm.c`, gesture detector, BLE protocol |
 | Vision pipeline | Diya, Meghna | preprocessing, detection, reticle, functional regions, targeting, vision confidence, failure handling |
 | CAVIA algorithm | Abhijith, Adwaith | candidates, preference scoring, confidence, ranking, adaptive-menu policy, profiles, FSM integration |
 | Dashboard + Evaluation | Adwaith, Meghna | live dashboard, logging, metrics, questionnaires, analysis |
@@ -45,7 +45,8 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Refactor `objdet.py` into an importable `VisionPipeline` publishing `VisionResult` (pull first: builds on `camera_source.py`) | Diya | ☐ |
 | Decide object set (Q2); collect test images/clips per object & region | Meghna | ☐ |
 | Candidate table + preference store + menu policy v1 with unit tests | Adwaith | ☐ |
-| Dashboard skeleton: FastAPI, WebSocket, MJPEG, static page | Meghna | ☐ |
+| Dashboard UI from `DASHBOARD_BRIEF.md` (version A on `feat/cavia-dashboard`, mock mode) | Adwaith | ☑ |
+| Dashboard UI from `DASHBOARD_BRIEF.md` (version B) | Meghna | ◐ |
 | Resolve Q1 (hardware ownership) | Team | ☐ |
 
 ## Week 2 tasks (Oct 26–Nov 1)
@@ -55,7 +56,8 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Runtime orchestrator + condition switch (C1/C2/C3) | Abhijith, Adwaith | ☐ |
 | Profiles (JSON) + preference updates from FSM outcomes | Adwaith | ☐ |
 | Vision: region confidence tuning, failure states shown on overlay, FPS/latency measurement | Diya, Meghna | ☐ |
-| Dashboard: all panels + experimenter controls (user, condition, trial start/end, outcome) | Meghna, Adwaith | ☐ |
+| Compare dashboards A and B, keep one (D18) | Team | ☐ |
+| FastAPI backend serving the dashboard protocol (`docs/interfaces.md` §8) | Adwaith | ☐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |
 | Remove camera `auto` / laptop fallback or pin `CAMERA_MODE=xiao` before pilot (D14) | Abhijith, Diya | ☐ |

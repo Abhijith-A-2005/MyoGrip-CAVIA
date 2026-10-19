@@ -96,7 +96,7 @@ One file per session: `data/sessions/<session_id>.jsonl`. One record per line:
 
 Vision records may be decimated to state changes only to keep logs small.
 
-## 7. Laptop ↔ NPG BLE protocol — DRAFT (firmware owner to finalize)
+## 7. Laptop ↔ NPG BLE protocol (DRAFT, firmware owner to finalize)
 
 Existing service `4fafc201-1fb5-459e-8fcc-c5c9c331914b`:
 - Data characteristic (notify): raw 3-channel EMG, 25 samples × 7 bytes. Unchanged.
@@ -113,3 +113,43 @@ Proposed additions on the control characteristic:
 | NPG → laptop | `ST <state> <sel> <grip> <prog%>` | FSM status, e.g. `ST CLOSING 0 4 43` |
 
 `ST` notifications on state change and every 100 ms during actuation.
+
+## 8. Dashboard protocol (backend ↔ browser)
+
+Built against the dashboard on `feat/cavia-dashboard` (`src/cavia/dashboard/`). TypeScript mirror:
+`src/cavia/dashboard/web/src/types/messages.ts`.
+
+Endpoints: `ws://<host>:8000/ws` (state), `http://<host>:8000/video` (MJPEG of the raw camera frame;
+the dashboard draws its own overlays), and the built UI from `src/cavia/dashboard/web/dist/`.
+
+Every server message is `{"type": "<kind>", "data": {...}}`. On connect the server sends one `snapshot`,
+then incremental messages.
+
+| `type` | `data` | When |
+|---|---|---|
+| `snapshot` | `{vision, menu, fsm, system, session, emg_recent: []}` | once per connection |
+| `vision` | `VisionResult` (§2) **plus** `source` (`XIAO`/`LAPTOP`), `box`, `region_box` | every processed frame |
+| `menu` | `MenuProposal` (§3), or `null` to clear both menus | on lock, and on return to HOME |
+| `fsm` | `FsmStatus` (§5) **plus** `returning: bool` (HE controlled opening in progress) | every change, ≥10 Hz in actuation |
+| `emg` | `EmgInput` (§4) | each discrete event and each activity change |
+| `system` | `{camera: {status, source, fps, latency_ms}, vision: {status, model}, hand_link: {status, battery_pct}, emg_source}` | about 1 Hz |
+| `session` | `{participant, condition, trial, trial_active}` | on change |
+
+`box` and `region_box` are `[x1, y1, x2, y2]` normalised 0..1 in frame coordinates, or `null`.
+`status` values: `live` / `ok` / `connected`, `degraded`, `stale` / `down` / `disconnected`.
+
+**Ordering rule:** send the `emg` message for a gesture **before** the `fsm` update it causes. The
+dashboard tags each gesture with the FSM state it arrived in (menu or actuation).
+
+Browser → server:
+
+```json
+{"type": "key", "data": {"key": "a", "down": true}}
+{"type": "control", "data": {"action": "start_trial"}}
+{"type": "control", "data": {"action": "end_trial", "grasp_success": true, "notes": ""}}
+{"type": "control", "data": {"action": "set_session", "participant": "P02", "condition": "C2_STATIC"}}
+```
+
+`key` messages carry real key-down/up for `w a s d e` only (keyboard EMG mode); the backend applies the
+same rules as `cavia.emg.keyboard.KeyboardEmg`. Control actions become `trial_start` / `trial_end` /
+`session_start` records in the session log (§6).
