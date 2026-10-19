@@ -5,8 +5,8 @@ Laptop-side software for MyoGrip CAVIA (Context-Aware Visual Intent Arbitration)
 | Package | Status | Contents |
 |---|---|---|
 | `core/` | ✅ | Message contracts, grip library, config, event bus |
-| `fsm/` | ✅ | Python reference FSM (mirror of the firmware FSM) + keyboard simulator |
-| `emg/` | ◐ | Keyboard EMG emulator (gesture detector and CSV replay to come) |
+| `fsm/` | ✅ | Python reference FSM (mirror of the firmware FSM) + simulator window |
+| `emg/` | ◐ | WASDE keyboard EMG emulator (gesture detector and CSV replay to come) |
 | `vision/` | ◐ | Camera source, YOLO detection, reticle, regions, tracker (standalone script; packaging pending) |
 | `arbitration/`, `runtime/`, `dashboard/`, `eval/` | ☐ | Planned — see [`docs/architecture.md`](../../docs/architecture.md) |
 
@@ -18,6 +18,7 @@ From the repository root:
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"            # core + FSM + tests (light)
+pip install -e ".[sim,dev]"        # add the FSM simulator window (pygame-ce)
 pip install -e ".[vision,dev]"     # add camera + YOLO stack (heavy)
 ```
 
@@ -30,10 +31,31 @@ pip install -e ".[vision,dev]"     # add camera + YOLO stack (heavy)
 ```bash
 pytest
 python -m cavia.fsm.sim --menu LATERAL,PINCH
+python -m cavia.fsm.sim --menu LATERAL --policy ONE_CONFIRM
+python -m cavia.fsm.sim --menu POWER,PINCH,TRIPOD,LATERAL --policy FULL_MENU   # manual cycling
 ```
 
-Keys: `1` SF · `2` SE · `3` LF · `4` LE · `5` HE · `f` flex · `e` extend · `space` rest · `x` invalid ·
-`m` reload menu (from HOME) · `q` quit. `f` / `e` / `space` latch until another is pressed.
+Opens a window showing the vertical menu, FSM state, grip progress bar, held keys and an event log.
+
+| Key | Menu mode | Actuation mode |
+|---|---|---|
+| `W` | SE — move up | — |
+| `S` | SF — move down | — |
+| `A` | LF — confirm selected grip | **hold** = flexor active → close; release → hold |
+| `D` | LE — open Full Menu | **hold** = extensor active → open; fully open → Full Menu |
+| `E` | HE — back to CAVIA Home | HE — controlled opening, then Full Menu |
+| `M` | reload mock menu (HOME only) | — |
+| `Q` / `Esc` | quit | quit |
+
+Rules mirroring real EMG:
+- One press = one gesture; holding `W`/`S` moves only once (no auto-repeat).
+- After confirming with `A`, **release `A` first**: the confirming contraction never moves the hand
+  (`wait_release` gate). Hold `A` again to close.
+- A gesture key pressed while another gesture key is held is ambiguous → `INVALID` (no action).
+  Release `A` before pressing `E` to go back.
+- `A` + `D` held together = co-contraction → hand stops and waits for full release.
+- If the window loses focus, all keys are treated as released (the hand holds).
+- A stalled window (e.g. while dragging) advances the hand by at most 0.1 s worth of movement.
 
 ## Vision pipeline
 

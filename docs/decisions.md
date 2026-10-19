@@ -4,6 +4,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Date | Decision | Why |
 |---|---|---|---|
+| D15 | 2026-10-19 | Keyboard EMG emulator uses W SE (up), S SF (down), A LF (confirm), D LE (full menu), E HE (back); in actuation, holding A / D = flexor / extensor activity. Simulator is a pygame-ce window (`sim` extra) for real key-up events | Matches the vertical menu; one key per gesture family makes hold-to-close feel like sustained EMG |
 | D14 | 2026-10-19 | Camera `auto` mode with laptop-webcam fallback is a temporary development aid; removed or pinned to `xiao` before pilot/evaluation trials | Only one XIAO exists; teammates need to test vision without it |
 | D13 | 2026-10-19 | FSM behaviour is defined by `tests/fsm/vectors.json`; Python and C FSMs must both pass it. Full Menu = 4 calibrated grips (C test used 5) | One spec, two implementations, no drift |
 | D12 | 2026-10-19 | Evaluation reduced to 3 conditions: C1 Manual cycling, C2 Static CAVIA, C3 Adaptive CAVIA | ~5 weeks left; these three still isolate vision benefit (C2 vs C1) and preference + adaptation benefit (C3 vs C2) |

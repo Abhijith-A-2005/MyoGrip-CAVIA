@@ -45,7 +45,7 @@ command burden and selection time without increasing incorrect choices or reduci
 src/cavia/vision/                 Laptop vision: camera source (XIAO/laptop), YOLO, reticle, regions, tracker
 src/cavia/core/                   Message contracts, grip library, config, event bus
 src/cavia/fsm/                    Python reference FSM (mirror of firmware) + interactive simulator
-src/cavia/emg/                    EMG input sources (keyboard emulator; detector/replay to come)
+src/cavia/emg/                    EMG input sources (WASDE keyboard emulator; detector/replay to come)
 tests/                            pytest suite; tests/fsm/vectors.json = shared FSM spec
 src/firmware/npg-lite-controller/ ESP-IDF firmware for NPG Lite (BLE EMG streaming + MyoGrip FSM). GPL-3.0
 src/firmware/xiao-camera/         XIAO ESP32-S3 Sense camera sensor profile (OV2640)
@@ -59,9 +59,11 @@ docs/                             Architecture, interfaces, decisions, plan
 ```bash
 # Laptop runtime (from repo root)
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"                              # core + tests; add ",vision" for camera/YOLO
-pytest                                               # contracts, FSM vectors, arbitration
-python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM + keyboard EMG, no hardware
+pip install -e ".[sim,dev]"                          # core + simulator + tests; add ",vision" for camera/YOLO
+pytest                                               # contracts, FSM vectors, keyboard, simulator
+python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM window + keyboard EMG, no hardware
+#   W up (SE) · S down (SF) · A confirm (LF) · D full menu (LE) · E back (HE)
+#   actuation: hold A = close · hold D = open · release = hold · M reload menu · Q quit
 
 # Vision (laptop) — settings in src/cavia/vision/.env (copy from .env.example)
 pip install -r src/cavia/vision/requirements.txt     # pinned vision environment
