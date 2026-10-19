@@ -1,9 +1,10 @@
 import { CameraPanel } from "./components/CameraPanel";
 import { FocusLight } from "./components/FocusLight";
 import { Header } from "./components/Header";
+import { AdaptiveMenu, FullMenu } from "./components/Menus";
 import { Panel } from "./components/Panel";
 import { TargetPanel } from "./components/TargetPanel";
-import { focusArea, POLICY_SUBTITLE } from "./labels";
+import { focusArea, menuReason, POLICY_SUBTITLE } from "./labels";
 import { useDashboard } from "./state/store";
 import "./LivePage.css";
 
@@ -28,19 +29,24 @@ export function LivePage() {
         <Panel
           area="adaptive"
           title="Adaptive menu"
-          subtitle={menu ? POLICY_SUBTITLE[menu.policy] : "Point the reticle at an object to get suggestions"}
+          subtitle={menu ? POLICY_SUBTITLE[menu.policy] : "Ranked by CAVIA for the locked region"}
+          aside={menu && menu.policy !== "FULL_MENU" && <p className="menu-reason">{menuReason(menu)}</p>}
           className="menu-adaptive"
           focused={focus === "adaptive"}
-          dimmed={focus === "full" || (actuating && fsm?.menu_kind !== "ADAPTIVE")}
-        />
+          dimmed={focus === "full" || menu?.policy === "FULL_MENU" || (actuating && fsm?.menu_kind !== "ADAPTIVE")}
+        >
+          <AdaptiveMenu menu={menu} fsm={fsm} />
+        </Panel>
         <Panel
           area="full"
           title="Full menu"
-          subtitle="All calibrated grips"
+          subtitle={focus === "adaptive" ? "All calibrated grips, opens with a long extension" : "All calibrated grips"}
           className="menu-full"
           focused={focus === "full"}
           dimmed={focus === "adaptive" || (actuating && fsm?.menu_kind !== "FULL")}
-        />
+        >
+          <FullMenu menu={menu} fsm={fsm} />
+        </Panel>
       </div>
 
       <footer className="live-ribbon" aria-label="EMG events" />

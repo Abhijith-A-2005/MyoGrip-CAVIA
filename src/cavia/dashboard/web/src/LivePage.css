@@ -51,3 +51,11 @@
   border-top: 1px solid transparent;
   border-image: linear-gradient(90deg, transparent, rgb(4 93 3 / 0.9) 12%, rgb(4 93 3 / 0.9) 88%, transparent) 1;
 }
+
+.menu-reason {
+  max-width: 46ch;
+  padding-top: 2px;
+  font-size: var(--t-small);
+  text-align: right;
+  color: var(--sage);
+}

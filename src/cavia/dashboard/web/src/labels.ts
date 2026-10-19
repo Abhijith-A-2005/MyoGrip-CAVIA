@@ -1,6 +1,6 @@
 // Display names. The object set is still being finalised (decision Q2), so keep every mapping here.
 
-import type { Condition, FsmMsg, FsmState, Grip, MenuPolicy } from "./types/messages";
+import type { Condition, FsmMsg, FsmState, Grip, MenuMsg, MenuPolicy } from "./types/messages";
 
 export const OBJECT_LABEL: Record<string, string> = {
   cup: "Mug",
@@ -36,7 +36,7 @@ export const GRIP_HINT: Record<Grip, string> = {
   POWER: "Whole hand around a cylinder",
   PINCH: "Thumb and index tips",
   TRIPOD: "Thumb with two fingers",
-  LATERAL: "Thumb against the side of the index",
+  LATERAL: "Thumb on the side of the index",
 };
 
 export const CONDITION_LABEL: Record<Condition, string> = {
@@ -85,3 +85,12 @@ export const regionLabel = (r: string | null) => (r ? REGION_LABEL[r] ?? r : "")
 /** Moves to reach item i from the top in a wrapping menu of n items. */
 export const movesToReach = (i: number, n: number) => Math.min(i, n - i);
 export const movesText = (m: number) => (m === 0 ? "Ready" : m === 1 ? "1 move" : `${m} moves`);
+
+/** One-line explanation of why the Adaptive Menu has this size. */
+export function menuReason(menu: MenuMsg): string {
+  const v = Math.round(menu.confidence.vision * 100);
+  if (menu.condition === "C2_STATIC") return `Region ${v}% sure. Fixed order, no preference history.`;
+  const n = menu.confidence.evidence_n;
+  const top = Math.round(menu.confidence.top_share * 100);
+  return `Region ${v}% sure. ${n} past choice${n === 1 ? "" : "s"} here. Top grip ${top}%.`;
+}
