@@ -36,8 +36,12 @@ function lastActivity(emg: EmgEntry[]): Activity {
   return "REST";
 }
 
-/** Re-render at ~30 fps so the timeline scrolls smoothly; stops when the tab is hidden. */
-function useNow() {
+/**
+ * Re-render at ~30 fps so the timeline scrolls smoothly. The loop stops itself once the newest
+ * entry has scrolled off and no activity is ongoing, so an idle ribbon costs nothing; any new
+ * entry restarts it. requestAnimationFrame also pauses when the tab is hidden.
+ */
+function useNow(latest: number, active: boolean) {
   const [now, setNow] = useState(() => performance.now());
   useEffect(() => {
     let raf = 0;
@@ -47,11 +51,11 @@ function useNow() {
         last = t;
         setNow(t);
       }
-      raf = requestAnimationFrame(tick);
+      if (active || t - latest < (WINDOW_S + 1) * 1000) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [latest, active]);
   return now;
 }
 
@@ -128,14 +132,17 @@ export function EmgRibbon() {
   const held = useDashboard((s) => s.held);
   const source = useDashboard((s) => s.system?.emg_source);
   const state = useDashboard((s) => s.fsm?.state ?? "HOME");
-  const now = useNow();
+  const latest = emg.length ? emg[emg.length - 1].at : -Infinity;
+  const activity = lastActivity(emg);
+  const now = useNow(latest, activity !== "REST");
   const { ref: timeline, width } = useWidth<HTMLDivElement>();
 
-  const activity = lastActivity(emg);
   const moving = ACTUATION.includes(state);
   // Position on the timeline: 0 at "now" (right edge) to 1 at WINDOW_S ago (left edge).
   const age = (at: number) => (now - at) / 1000 / WINDOW_S;
-  const events = emg.filter((e) => e.event && e.event !== "REST" && age(e.at) <= 1);
+  // In a grip the FSM only acts on HE; other discrete gestures there are shown as activity bars.
+  const shown = (e: EmgEntry) => !e.moving || e.event === "HE" || e.event === "INVALID";
+  const events = emg.filter((e) => e.event && e.event !== "REST" && shown(e) && age(e.at) <= 1);
   const spans = activitySpans(emg, now).filter((s) => age(s.to) <= 1);
 
   return (

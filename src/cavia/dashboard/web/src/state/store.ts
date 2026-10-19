@@ -3,7 +3,12 @@ import type { EmgMsg, ServerMessage, Snapshot } from "../types/messages";
 
 export type Link = "connecting" | "open" | "reconnecting" | "mock";
 
-export type EmgEntry = EmgMsg & { seq: number; at: number };
+/**
+ * `at`: local arrival time (performance.now), so the ribbon is independent of the backend clock.
+ * `moving`: the hand was in actuation when the gesture arrived. The backend sends an `emg`
+ * message before the `fsm` update it causes, so the stored FSM state is the one the gesture met.
+ */
+export type EmgEntry = EmgMsg & { seq: number; at: number; moving: boolean };
 
 export type DashboardState = Snapshot & {
   link: Link;
@@ -11,7 +16,6 @@ export type DashboardState = Snapshot & {
   held: string[];
   /** Monotonic counter so the ribbon can key events uniquely. */
   emgSeq: number;
-  /** `at` is the local arrival time (performance.now), so the ribbon is independent of the backend clock. */
   emg: EmgEntry[];
 };
 
@@ -37,8 +41,11 @@ function set(next: Partial<DashboardState>) {
   listeners.forEach((l) => l());
 }
 
+const ACTUATION = ["CLOSING", "HOLDING", "OPENING"];
+
 function pushEmg(list: EmgEntry[], msg: EmgMsg, seq: number) {
-  return [...list, { ...msg, seq, at: performance.now() }].slice(-EMG_KEEP);
+  const moving = ACTUATION.includes(state.fsm?.state ?? "HOME");
+  return [...list, { ...msg, seq, at: performance.now(), moving }].slice(-EMG_KEEP);
 }
 
 export function applyMessage(msg: ServerMessage) {
