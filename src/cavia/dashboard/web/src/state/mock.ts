@@ -18,43 +18,48 @@ const FULL_MENU: Grip[] = ["POWER", "PINCH", "TRIPOD", "LATERAL"];
 type Scenario = Pick<MenuMsg, "policy" | "items" | "scores" | "confidence" | "condition"> & {
   object: string;
   region: string;
-  box: Box;
-  regionBox: Box;
+  view: typeof HANDLE_VIEW;
 };
 
-const CUP_BOX: Box = [0.3, 0.2, 0.7, 0.84];
-const HANDLE_BOX: Box = [0.6, 0.34, 0.7, 0.68];
-const BODY_BOX: Box = [0.3, 0.2, 0.6, 0.84];
+// Boxes match public/mock-frame-*.svg; the wrist points the reticle (frame centre) at the region.
+const HANDLE_VIEW = { cup: [0.15, 0.2, 0.55, 0.84] as Box, region: [0.45, 0.34, 0.55, 0.68] as Box, frame: "/mock-frame-handle.svg" };
+const BODY_VIEW = { cup: [0.35, 0.2, 0.75, 0.84] as Box, region: [0.35, 0.2, 0.65, 0.84] as Box, frame: "/mock-frame-body.svg" };
 
 const SCENARIOS: Record<MenuPolicy, Scenario> = {
   TOP_TWO: {
     policy: "TOP_TWO", condition: "C3_ADAPTIVE", object: "cup", region: "handle",
     items: ["LATERAL", "PINCH"], scores: [0.71, 0.29],
     confidence: { vision: 0.87, evidence_n: 6, top_share: 0.71, margin: 0.42 },
-    box: CUP_BOX, regionBox: HANDLE_BOX,
+    view: HANDLE_VIEW,
   },
   ONE_CONFIRM: {
     policy: "ONE_CONFIRM", condition: "C3_ADAPTIVE", object: "cup", region: "handle",
     items: ["LATERAL"], scores: [0.86],
     confidence: { vision: 0.91, evidence_n: 9, top_share: 0.86, margin: 0.72 },
-    box: CUP_BOX, regionBox: HANDLE_BOX,
+    view: HANDLE_VIEW,
   },
   FULL_COMPATIBLE: {
     policy: "FULL_COMPATIBLE", condition: "C2_STATIC", object: "cup", region: "body",
     items: ["POWER", "LATERAL"], scores: [0.5, 0.5],
     confidence: { vision: 0.74, evidence_n: 1, top_share: 0.5, margin: 0 },
-    box: CUP_BOX, regionBox: BODY_BOX,
+    view: BODY_VIEW,
   },
   FULL_MENU: {
     policy: "FULL_MENU", condition: "C1_MANUAL", object: "cup", region: "handle",
     items: [], scores: [],
     confidence: { vision: 0.87, evidence_n: 0, top_share: 0, margin: 0 },
-    box: CUP_BOX, regionBox: HANDLE_BOX,
+    view: HANDLE_VIEW,
   },
 };
 
 const GESTURE_KEYS = new Set(["w", "a", "s", "d", "e"]);
 const ACTUATION = ["CLOSING", "HOLDING", "OPENING"];
+
+/** Still image standing in for the camera feed in mock mode. */
+export function mockFrameUrl(params: URLSearchParams): string {
+  const policy = (params.get("policy")?.toUpperCase() ?? "TOP_TWO") as MenuPolicy;
+  return (SCENARIOS[policy] ?? SCENARIOS.TOP_TWO).view.frame;
+}
 
 export function startMock(params: URLSearchParams): Transport {
   const policy = (params.get("policy")?.toUpperCase() ?? "TOP_TWO") as MenuPolicy;
@@ -118,8 +123,8 @@ export function startMock(params: URLSearchParams): Transport {
       reticle_score: Math.min(1, 0.3 + k * 0.38),
       stability: Math.min(1, 0.25 + k * 0.65),
       stable: locked,
-      box: jitter(scenario.box, t, amp),
-      region_box: jitter(scenario.regionBox, t, amp),
+      box: jitter(scenario.view.cup, t, amp),
+      region_box: jitter(scenario.view.region, t, amp),
     };
   };
 

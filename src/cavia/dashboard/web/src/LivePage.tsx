@@ -1,6 +1,8 @@
+import { CameraPanel } from "./components/CameraPanel";
 import { FocusLight } from "./components/FocusLight";
 import { Header } from "./components/Header";
 import { Panel } from "./components/Panel";
+import { TargetPanel } from "./components/TargetPanel";
 import { focusArea, POLICY_SUBTITLE } from "./labels";
 import { useDashboard } from "./state/store";
 import "./LivePage.css";
@@ -17,8 +19,8 @@ export function LivePage() {
       <Header />
 
       <div className="live-top">
-        <Panel area="camera" title="Wrist camera" focused={focus === "camera"} />
-        <Panel area="context" title="Target" />
+        <CameraPanel focused={focus === "camera"} />
+        <TargetPanel />
         <Panel area="hand" title="Hand" focused={actuating} />
       </div>
 

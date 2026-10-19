@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480">
+  <!-- Mock wrist-camera frame, handle under the reticle: body x 0.15-0.45, handle x 0.45-0.55. -->
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22251f"/>
+      <stop offset="1" stop-color="#14160f"/>
+    </linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a342b"/>
+      <stop offset="1" stop-color="#211d17"/>
+    </linearGradient>
+    <linearGradient id="ceramic" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8f8b82"/>
+      <stop offset="0.35" stop-color="#d9d5cc"/>
+      <stop offset="0.7" stop-color="#ebe8e1"/>
+      <stop offset="1" stop-color="#a7a39a"/>
+    </linearGradient>
+    <linearGradient id="inside" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3626"/>
+      <stop offset="1" stop-color="#2a1d13"/>
+    </linearGradient>
+    <radialGradient id="lamp" cx="0.75" cy="0.1" r="0.8">
+      <stop offset="0" stop-color="#fff3d6" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#fff3d6" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+
+  <rect width="640" height="480" fill="url(#wall)"/>
+  <rect y="300" width="640" height="180" fill="url(#desk)"/>
+  <rect y="298" width="640" height="3" fill="#4b4438" opacity="0.6"/>
+  <rect width="640" height="480" fill="url(#lamp)"/>
+
+  <g transform="translate(-96 0)">
+  <!-- shadow -->
+    <ellipse cx="300" cy="404" rx="128" ry="16" fill="#000" opacity="0.55" filter="url(#soft)"/>
+
+    <!-- handle -->
+    <path d="M380 168 C 452 168, 452 322, 380 322" fill="none" stroke="#b8b4ab" stroke-width="26" stroke-linecap="round"/>
+    <path d="M380 168 C 452 168, 452 322, 380 322" fill="none" stroke="#e6e2da" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+
+    <!-- body -->
+    <path d="M192 112 L192 380 Q192 404 222 404 L354 404 Q384 404 384 380 L384 112 Z" fill="url(#ceramic)"/>
+    <ellipse cx="288" cy="112" rx="96" ry="18" fill="#cfcbc2"/>
+    <ellipse cx="288" cy="114" rx="86" ry="13" fill="url(#inside)"/>
+    <rect x="212" y="150" width="10" height="220" rx="5" fill="#fff" opacity="0.18"/>
+  </g>
+</svg>

@@ -1,5 +1,5 @@
 import { attachKeyboard } from "./keyboard";
-import { startMock } from "./mock";
+import { mockFrameUrl, startMock } from "./mock";
 import { connectBackend, type Transport } from "./ws";
 
 const params = () => new URLSearchParams(window.location.search);
@@ -27,6 +27,8 @@ export function connect(): { transport: Transport; dispose: () => void } {
   };
 }
 
-export function videoUrl(): string | null {
-  return isMock() ? null : `http://${backendHost()}/video`;
+/** MJPEG stream from the backend, or the still mock frame in mock mode. */
+export function videoUrl(): string {
+  const p = params();
+  return isMock(p) ? mockFrameUrl(p) : `http://${backendHost(p)}/video`;
 }
