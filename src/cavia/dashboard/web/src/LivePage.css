@@ -1,0 +1,52 @@
+/* 1920x1080 stage: header 72 + two 416px rows + ribbon 88, 16px gaps, 20/24px padding. */
+.live {
+  display: grid;
+  grid-template-rows: 72px 1fr 1fr 88px;
+  gap: var(--s-4);
+  height: 100%;
+  padding: 20px var(--s-5);
+}
+
+.live-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 var(--s-2);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 30px;
+  letter-spacing: 0.14em;
+  color: var(--ivory);
+  text-shadow: 0 0 24px rgb(3 230 3 / 0.35);
+  white-space: nowrap;
+}
+
+.live-top {
+  display: grid;
+  grid-template-columns: 46fr 24fr 30fr;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
+.live-menus {
+  display: flex;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
+.menu-adaptive {
+  flex: 58 1 0;
+}
+
+.menu-full {
+  flex: 42 1 0;
+}
+
+.live-ribbon {
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--panel-edge);
+}

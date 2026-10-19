@@ -1,0 +1,51 @@
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--s-5);
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--panel-edge);
+  transition:
+    box-shadow var(--dur-focus) var(--ease-focus),
+    opacity var(--dur-focus) var(--ease-focus),
+    filter var(--dur-focus) var(--ease-focus);
+}
+
+.panel[data-focused] {
+  box-shadow: var(--panel-edge-focus);
+}
+
+.panel[data-dimmed] {
+  opacity: 0.55;
+  filter: saturate(0.4);
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.panel-title {
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ivory);
+}
+
+.panel-subtitle {
+  margin-top: var(--s-1);
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+.panel-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
