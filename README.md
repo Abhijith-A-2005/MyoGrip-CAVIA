@@ -57,6 +57,7 @@ The shortcut never triggers movement by itself, and the full menu remains access
 MyoGrip-CAVIA/
 ├── assets/figures/                    # Approved project figures
 ├── data/emg/test-1/                   # EMG characterization data
+├── docs/                              # Architecture, interfaces, decisions, team plan
 ├── src/
 │   ├── cavia/
 │   │   ├── README.md
@@ -65,6 +66,7 @@ MyoGrip-CAVIA/
 │       └── npg-lite-controller/       # ESP32-C6 firmware
 ├── .gitattributes
 ├── .gitignore
+├── CLAUDE.md
 └── README.md
 ```
 
