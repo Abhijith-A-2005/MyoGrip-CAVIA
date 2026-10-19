@@ -41,16 +41,17 @@ Opens a window showing the vertical menu, FSM state, grip progress bar, held key
 |---|---|---|
 | `W` | SE — move up | — |
 | `S` | SF — move down | — |
-| `A` | LF — confirm selected grip | **hold** = flexor active → close; release → hold |
-| `D` | LE — open Full Menu | **hold** = extensor active → open; fully open → Full Menu |
-| `E` | HE — back to CAVIA Home | HE — controlled opening, then Full Menu |
+| `A` | LF — confirm selected grip (keep holding to start closing) | **hold** = flexor active → close; release → hold |
+| `D` | LE — open Full Menu | **hold** = extensor active → open; stops at fully open (grip stays active) |
+| `E` | HE — back to CAVIA Home | HE — the only way out of a grip: controlled opening, then Full Menu |
 | `M` | reload mock menu (HOME only) | — |
 | `Q` / `Esc` | quit | quit |
 
 Rules mirroring real EMG:
 - One press = one gesture; holding `W`/`S` moves only once (no auto-repeat).
-- After confirming with `A`, **release `A` first**: the confirming contraction never moves the hand
-  (`wait_release` gate). Hold `A` again to close.
+- One press of `A` confirms **and** starts closing: keep holding to close, release to hold.
+  A quick tap confirms without moving the hand.
+- Close/open as many times as needed with the same grip; reaching fully open does not leave the grip.
 - A gesture key pressed while another gesture key is held is ambiguous → `INVALID` (no action).
   Release `A` before pressing `E` to go back.
 - `A` + `D` held together = co-contraction → hand stops and waits for full release.

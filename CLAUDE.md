@@ -30,7 +30,9 @@ command burden and selection time without increasing incorrect choices or reduci
 - **Full Menu = all physically calibrated grips**, not only the region-compatible ones.
 - **HE is Back/Cancel, not an emergency stop.** The real E-stop is a physical servo-power cutoff.
 - Actuation is **constant-speed, duration-controlled** (`grip_progress` 0.0–1.0): flexor → close, rest → hold, extensor → open. Never amplitude-proportional.
-- Fully open after actuation → **Full Menu**. Full Menu + HE → CAVIA Home.
+- Confirming LF flows straight into closing (no release needed). Inside actuation the user can close and
+  open repeatedly; reaching fully open just holds there. **Only HE leaves a grip** (controlled opening →
+  Full Menu). Full Menu + HE → CAVIA Home. (D16)
 - Ambiguous EMG → **no action**. One contraction → at most one event (refractory + return-to-rest).
 - Do not add FSR/contact sensing, EEG/ErrP, EOG or ECG to the MVP.
 - Wording: say "functional grasp-region estimate / class-specific region rule", never "affordance detection".

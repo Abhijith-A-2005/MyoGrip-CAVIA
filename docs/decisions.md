@@ -4,6 +4,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Date | Decision | Why |
 |---|---|---|---|
+| D16 | 2026-10-19 | (a) LF confirm no longer sets the release gate: continued flexion after LF closes immediately. (b) Reaching fully open stays in actuation; the user may close again. Only HE leaves a grip (controlled opening → Full Menu). Supersedes D7's "fully open → Full Menu" | Faster, more natural grasping; re-grasp with the same grip without re-selecting. INVALID still requires rest |
 | D15 | 2026-10-19 | Keyboard EMG emulator uses W SE (up), S SF (down), A LF (confirm), D LE (full menu), E HE (back); in actuation, holding A / D = flexor / extensor activity. Simulator is a pygame-ce window (`sim` extra) for real key-up events | Matches the vertical menu; one key per gesture family makes hold-to-close feel like sustained EMG |
 | D14 | 2026-10-19 | Camera `auto` mode with laptop-webcam fallback is a temporary development aid; removed or pinned to `xiao` before pilot/evaluation trials | Only one XIAO exists; teammates need to test vision without it |
 | D13 | 2026-10-19 | FSM behaviour is defined by `tests/fsm/vectors.json`; Python and C FSMs must both pass it. Full Menu = 4 calibrated grips (C test used 5) | One spec, two implementations, no drift |
@@ -12,7 +13,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 | D10 | 2026-10-19 | FSM authority and gesture detection live on NPG firmware; laptop mirrors state. Prototype in Python first | Actuation must not depend on BLE latency/dropouts |
 | D9 | 2026-10-19 | Integration-first: keyboard EMG emulator + CSV replay so CAVIA, dashboard and evaluation run before hardware is ready | Late integration is the top project risk |
 | D8 | 2026-10-19 | All evaluation metrics are computed from JSONL session logs | Reproducible analysis; no hand-tallied numbers |
-| D7 | — | Fully open after actuation returns to Full Menu; Full Menu + HE → CAVIA Home | Re-grip same object without re-analysis |
+| D7 | — | ~~Fully open after actuation returns to Full Menu~~ (superseded by D16); Full Menu + HE → CAVIA Home | Re-grip same object without re-analysis |
 | D6 | — | Actuation = Closing / Holding / Opening with constant-speed, duration-controlled `grip_progress` | Predictable, safe; no amplitude-proportional speed |
 | D5 | — | HE is Back/Cancel, not E-stop; physical servo-power cutoff is the E-stop | Software gesture is not a safety guarantee |
 | D4 | — | Full Menu contains all calibrated grips, not just region-compatible ones | Explicit override, preserves agency, measures CAVIA disagreement |
@@ -29,4 +30,4 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 | Q3 | Channel 3 role (artifact rejection / intent validation)? | EMG owner | Week 3 |
 | Q4 | Final menu-policy thresholds (V, N, p1, margin) | Abhijith & Adwaith | Pilot, Week 4 |
 | Q5 | Participants: how many, who, ethics/consent form | Team + guide | Week 3 |
-| Q6 | Confirm: extensor activity while already fully open (right after LF) → straight to Full Menu (vector `he_while_already_open…`, C case 26→27) | Abhijith, Adwaith | Week 1 |
+| ~~Q6~~ | Resolved by D16: fully open no longer leaves actuation | — | — |

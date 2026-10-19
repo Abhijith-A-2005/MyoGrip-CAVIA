@@ -36,7 +36,7 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Python reference FSM + shared vectors (`tests/fsm/vectors.json`, ported from the 33 C selftest cases) | Adwaith | ☑ |
 | Keyboard EMG emulator + `python -m cavia.fsm.sim` | Adwaith | ☑ |
 | WASDE key mapping with hold-to-actuate, simulator window (D15) | Adwaith | ☑ |
-| Update `myogrip_fsm.c` to pass the shared vectors (dynamic menu, `grip_progress` + tick, HE controlled opening, fully-open → FULL, selftest off by default) | Abhijith | ☐ |
+| Update `myogrip_fsm.c` to pass the shared vectors (dynamic menu, `grip_progress` + tick, HE controlled opening, no gate after LF, fully open stays in actuation (D16), selftest off by default) | Abhijith | ☐ |
 | Offline EMG gesture detector prototype on recorded CSVs (Python) | Abhijith | ☐ |
 | Finalize BLE `MENU` / `EV` / `ST` protocol (`docs/interfaces.md` §7) | Abhijith | ☐ |
 | XIAO streaming integration + camera source with laptop-webcam fallback (`camera_source.py`, `.env`) | Abhijith | ☑ |
