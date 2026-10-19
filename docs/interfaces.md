@@ -37,7 +37,9 @@ Published once per processed frame.
 
 ## 3. MenuProposal (CAVIA → bus → bridge → NPG)
 
-Built once on `LOCKED`; frozen until FSM returns to `HOME`.
+Built once on `LOCKED`; frozen until FSM returns to `HOME`. Rejected at construction if `full_menu` is
+empty, `scores` and `items` differ in length, `OPEN` appears, or a grip is duplicated. `items` may be
+empty (C1 manual cycling uses `policy: FULL_MENU`).
 
 ```json
 {
@@ -106,7 +108,7 @@ Proposed additions on the control characteristic:
 |---|---|---|
 | laptop → NPG | `MENU <id> <g0>[,<g1>...]` | load adaptive menu, grip ids from §1, e.g. `MENU 17 4,2` |
 | laptop → NPG | `FULL <g0>,<g1>,...` | set full-menu contents (sent once at session start) |
-| laptop → NPG | `HOME` | abandon menu, return to HOME (experimenter abort) |
+| laptop → NPG | `HOME` | experimenter abort: if a grip is active, controlled opening to 0.0 first, then HOME (D17) |
 | NPG → laptop | `EV <event>` | discrete event detected, e.g. `EV SF` |
 | NPG → laptop | `ST <state> <sel> <grip> <prog%>` | FSM status, e.g. `ST CLOSING 0 4 43` |
 

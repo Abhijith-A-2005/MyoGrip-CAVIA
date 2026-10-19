@@ -157,6 +157,7 @@ raw ADC (250 Hz) → band/notch + rectify → 100 ms RMS envelope → per-user t
 
 Gaps in current `myogrip_fsm.c` (to close before hardware integration):
 1. No `grip_progress`. LF must not set `wait_release`, and fully open must stay in actuation (D16).
+   Negative `dt` must not move the hand; abort (`HOME`) mid-grip must open first (D17).
 2. HE in actuation must run controlled opening to 0.0, then enter Full Menu.
 3. Menu sizes are compile-time constants (3/5); must accept the menu sent by CAVIA.
 4. No gesture detector on-device yet; no PCA9685 driver.

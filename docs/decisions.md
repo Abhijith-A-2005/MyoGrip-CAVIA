@@ -4,6 +4,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Date | Decision | Why |
 |---|---|---|---|
+| D17 | 2026-10-19 | Experimenter abort (BLE `HOME`) during a grip runs the controlled opening first, then HOME; FSM speeds must be > 0; negative tick time is ignored | A plain reset would leave the hand closed in HOME, where extension is ignored, and the next grip would start half-closed |
 | D16 | 2026-10-19 | (a) LF confirm no longer sets the release gate: continued flexion after LF closes immediately. (b) Reaching fully open stays in actuation; the user may close again. Only HE leaves a grip (controlled opening → Full Menu). Supersedes D7's "fully open → Full Menu" | Faster, more natural grasping; re-grasp with the same grip without re-selecting. INVALID still requires rest |
 | D15 | 2026-10-19 | Keyboard EMG emulator uses W SE (up), S SF (down), A LF (confirm), D LE (full menu), E HE (back); in actuation, holding A / D = flexor / extensor activity. Simulator is a pygame-ce window (`sim` extra) for real key-up events | Matches the vertical menu; one key per gesture family makes hold-to-close feel like sustained EMG |
 | D14 | 2026-10-19 | Camera `auto` mode with laptop-webcam fallback is a temporary development aid; removed or pinned to `xiao` before pilot/evaluation trials | Only one XIAO exists; teammates need to test vision without it |
