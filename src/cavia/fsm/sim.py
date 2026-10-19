@@ -116,7 +116,7 @@ def draw(app: SimApp, screen, fonts) -> None:
     text("MyoGrip FSM simulator", (24, 18), small, MUTED)
     pygame.draw.rect(screen, state_color, (24, 44, 220, 44), border_radius=8)
     text(fsm.state.value, (38, 52), big, BG)
-    flags = [f for f, on in (("GATE: release first", fsm.wait_release),
+    flags = [f for f, on in (("STOPPED: release all keys", fsm.wait_release),
                              ("RETURNING TO OPEN", fsm.returning)) if on]
     text("   ".join(flags), (258, 58), small, (255, 120, 120))
 

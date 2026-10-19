@@ -49,32 +49,48 @@ def test_holding_s_moves_only_once(app):
     assert app.fsm.selected == 1
 
 
-def test_confirm_then_hold_a_closes_and_release_holds(app):
+def test_one_press_of_a_confirms_and_closes(app):
     tap(app, "s")
-    hold(app, "a", 1.0)                   # confirming contraction held on
-    assert app.fsm.state is FsmState.HOLDING and app.fsm.wait_release
-    assert app.fsm.progress == 0.0        # confirmation never moves the hand
-    release(app, "a")
-    assert not app.fsm.wait_release
-
-    hold(app, "a", 1.0)
+    hold(app, "a", 1.0)                   # the confirming press keeps closing
     assert app.fsm.state is FsmState.CLOSING
+    assert app.fsm.active_grip is Grip.PINCH
     assert app.fsm.progress == pytest.approx(0.5)
     release(app, "a")
     assert app.fsm.state is FsmState.HOLDING
     assert app.fsm.progress == pytest.approx(0.5)
-    assert app.fsm.active_grip is Grip.PINCH
 
 
-def test_hold_d_opens_to_full_menu_without_extra_le(app):
+def test_quick_tap_of_a_confirms_without_moving(app):
     tap(app, "a")
-    hold(app, "a", 0.6)
+    assert app.fsm.state is FsmState.HOLDING
+    assert app.fsm.progress == 0.0
+
+
+def test_full_open_stays_in_grip_and_can_close_again(app):
+    hold(app, "a", 2.0)
     release(app, "a")
-    hold(app, "d", 2.0)                   # opens to 0.0, then Full Menu while D is still held
-    assert app.fsm.state is FsmState.FULL
-    assert app.fsm.selected == 0
+    assert app.fsm.progress == 1.0
+    hold(app, "d", 3.0)                   # fully open while D still held
+    assert app.fsm.state is FsmState.OPENING and app.fsm.progress == 0.0
     release(app, "d")
-    assert app.fsm.state is FsmState.FULL
+    assert app.fsm.state is FsmState.HOLDING and app.fsm.active_grip is Grip.LATERAL
+
+    hold(app, "a", 1.0)                   # second cycle with the same grip
+    assert app.fsm.state is FsmState.CLOSING and app.fsm.progress == pytest.approx(0.5)
+    release(app, "a")
+
+    tap(app, "e")                         # only HE leaves the grip
+    for _ in range(20):
+        app.step(0.05)
+    assert app.fsm.state is FsmState.FULL and app.fsm.active_grip is None
+
+
+def test_d_in_actuation_never_opens_full_menu(app):
+    tap(app, "a")
+    tap(app, "d")
+    hold(app, "d", 1.0)
+    release(app, "d")
+    assert app.fsm.state is FsmState.HOLDING
 
 
 def test_closing_saturates_at_one(app):
@@ -149,7 +165,7 @@ def test_focus_loss_stops_closing(app):
 
 
 def test_stalled_window_cannot_jump_progress(app):
-    tap(app, "a")                         # confirm (release clears the gate)
+    tap(app, "a")                         # confirm
     app.key_down("a")
     app.step(0.0)
     assert app.fsm.state is FsmState.CLOSING

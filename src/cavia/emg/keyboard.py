@@ -27,8 +27,8 @@ HELP = [
     "W  up (SE)        S  down (SF)",
     "A  confirm (LF)   D  full menu (LE)",
     "E  back / cancel (HE)",
-    "Actuation: hold A = close, hold D = open, release = hold",
-    "After confirming, release A before holding it again to close",
+    "Hold A on a menu = confirm + start closing in one press",
+    "Actuation: hold A = close, hold D = open, release = hold, E = leave grip",
     "M  reload menu (from HOME)   Q / Esc  quit",
 ]
 

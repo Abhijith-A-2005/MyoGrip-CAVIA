@@ -68,9 +68,9 @@ class MyoGripFsm:
             elif event is EmgEvent.LF:
                 self.active_grip = items[self.selected]
                 self.confirmed_from = self.menu_kind()
+                # The confirming flexion may continue straight into closing (D16).
                 self.state = FsmState.HOLDING
-                # The confirming contraction must end before activity can move the hand.
-                self.wait_release = True
+                self.wait_release = False
             elif event is EmgEvent.LE and self.state is FsmState.ADAPTIVE:
                 self.state = FsmState.FULL
                 self.selected = 0
@@ -80,7 +80,7 @@ class MyoGripFsm:
             return
 
         if self.state in ACTUATION_STATES and event is EmgEvent.HE and not self.returning:
-            # Abandon grip: controlled opening to fully open, then Full Menu (see tick).
+            # HE is the only way out of actuation: controlled opening, then Full Menu (see tick).
             self.state = FsmState.OPENING
             self.returning = True
             self.wait_release = False
@@ -112,8 +112,9 @@ class MyoGripFsm:
         elif self.state is FsmState.OPENING:
             speed = self.config.he_return_speed if self.returning else self.config.open_speed
             self.progress = max(0.0, self.progress - speed * dt)
-            if self.progress <= 0.0:
-                # Fully open: offer the Full Menu for a different grip on the same object.
+            # Fully open stays in actuation so the user can close again (D16); only an HE
+            # return ends the grip and offers the Full Menu.
+            if self.returning and self.progress <= 0.0:
                 self.state = FsmState.FULL
                 self.selected = 0
                 self.returning = False
