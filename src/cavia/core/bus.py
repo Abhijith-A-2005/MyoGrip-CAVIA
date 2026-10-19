@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import defaultdict
 from typing import Any, Callable
+
+log = logging.getLogger(__name__)
 
 Handler = Callable[[str, Any], None]
 
@@ -37,4 +40,8 @@ class Bus:
         with self._lock:
             handlers = [*self._handlers[topic], *self._handlers["*"]]
         for handler in handlers:
-            handler(topic, message)
+            # One failing subscriber (e.g. the dashboard) must not starve the others (the logger).
+            try:
+                handler(topic, message)
+            except Exception:
+                log.exception("Bus handler %r failed on topic %r", handler, topic)

@@ -34,6 +34,8 @@ def apply(fsm, step):
         fsm.on_activity(Activity(step["value"]))
     elif op == "tick":
         fsm.tick(step["dt"])
+    elif op == "abort":
+        fsm.abort()
     else:
         raise ValueError(op)
 
@@ -83,3 +85,10 @@ def test_he_from_menu_clears_snapshot():
     fsm.on_event(EmgEvent.HE)
     s = fsm.status(ts=0.0)
     assert (s.state, s.menu_id, s.menu_kind, s.last_event) == (FsmState.HOME, None, None, "HE")
+
+
+@pytest.mark.parametrize("field", ["close_speed", "open_speed", "he_return_speed"])
+@pytest.mark.parametrize("value", [0.0, -0.5])
+def test_non_positive_speed_rejected(field, value):
+    with pytest.raises(ValueError):
+        MyoGripFsm(FsmConfig(**{field: value}))

@@ -129,6 +129,18 @@ class MenuProposal:
     confidence: MenuConfidence
     full_menu: list[Grip]
 
+    def __post_init__(self) -> None:
+        # An invalid menu must fail where it is built, not as a crash inside the FSM.
+        if not self.full_menu:
+            raise ValueError("full_menu must contain at least one calibrated grip")
+        if len(self.scores) != len(self.items):
+            raise ValueError("scores must have one entry per item")
+        for name, grips in (("items", self.items), ("full_menu", self.full_menu)):
+            if Grip.OPEN in grips:
+                raise ValueError(f"OPEN is a hand state, not a menu choice ({name})")
+            if len(set(grips)) != len(grips):
+                raise ValueError(f"duplicate grips in {name}")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "ts": self.ts,

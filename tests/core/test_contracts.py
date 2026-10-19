@@ -93,3 +93,38 @@ def test_config_overrides_and_rejects_typos(tmp_path):
     p.write_text("[fsm]\nclose_sped = 0.5\n")
     with pytest.raises(KeyError):
         load_config(p)
+
+
+def make_menu(items, scores=None, full=None):
+    return MenuProposal(
+        ts=0.0, menu_id=1, condition=Condition.C2_STATIC, context=MenuContext("cup", "body"),
+        policy=MenuPolicy.FULL_COMPATIBLE, items=items,
+        scores=[0.5] * len(items) if scores is None else scores,
+        confidence=MenuConfidence(), full_menu=full_menu() if full is None else full,
+    )
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"items": [Grip.POWER], "full": []},
+    {"items": [Grip.POWER, Grip.PINCH], "scores": [1.0]},
+    {"items": [Grip.OPEN]},
+    {"items": [Grip.POWER], "full": [Grip.OPEN, Grip.POWER]},
+    {"items": [Grip.POWER, Grip.POWER]},
+    {"items": [Grip.POWER], "full": [Grip.PINCH, Grip.PINCH]},
+], ids=["empty-full", "score-mismatch", "open-item", "open-full", "dup-items", "dup-full"])
+def test_invalid_menu_proposal_rejected(kwargs):
+    with pytest.raises(ValueError):
+        make_menu(**kwargs)
+
+
+def test_empty_items_allowed_for_manual_condition():
+    assert make_menu([]).items == []
+
+
+def test_bus_isolates_failing_handler(caplog):
+    bus, seen = Bus(), []
+    bus.subscribe("fsm", lambda t, m: 1 / 0)
+    bus.subscribe("*", lambda t, m: seen.append(m))
+    bus.publish("fsm", "status")
+    assert seen == ["status"]
+    assert "failed" in caplog.text

@@ -6,7 +6,8 @@
     "menu": "load adaptive menu {items, policy?=TOP_TWO}",
     "event": "discrete gesture: SF SE LF LE HE REST INVALID",
     "activity": "continuous: REST FLEX_ACTIVE EXT_ACTIVE INVALID",
-    "tick": "advance time by dt seconds"
+    "tick": "advance time by dt seconds (negative dt is treated as 0)",
+    "abort": "experimenter abort (BLE HOME): controlled opening if a grip is active, then HOME"
   },
   "expect_keys": "state, index (selected), gate (wait_release), progress (grip_progress), grip (active_grip, optional)",
   "sequences": [
@@ -148,6 +149,52 @@
         {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "HOLDING", "gate": true}},
         {"op": "activity", "value": "REST", "expect": {"state": "HOLDING", "gate": false}},
         {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING"}}
+      ]
+    },
+    {
+      "name": "negative_tick_never_moves_the_hand",
+      "steps": [
+        {"op": "menu", "items": ["POWER"], "expect": {"state": "ADAPTIVE"}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING"}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING"}},
+        {"op": "tick", "dt": 1.0, "expect": {"progress": 0.5}},
+        {"op": "tick", "dt": -10.0, "expect": {"state": "CLOSING", "progress": 0.5}},
+        {"op": "activity", "value": "EXT_ACTIVE", "expect": {"state": "OPENING"}},
+        {"op": "tick", "dt": -10.0, "expect": {"state": "OPENING", "progress": 0.5}}
+      ]
+    },
+    {
+      "name": "abort_mid_grip_opens_then_goes_home",
+      "steps": [
+        {"op": "menu", "items": ["POWER"], "expect": {"state": "ADAPTIVE"}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING"}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING"}},
+        {"op": "tick", "dt": 1.0, "expect": {"progress": 0.5}},
+        {"op": "abort", "expect": {"state": "OPENING", "progress": 0.5}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "OPENING"}},
+        {"op": "tick", "dt": 0.25, "expect": {"state": "OPENING", "progress": 0.25}},
+        {"op": "tick", "dt": 0.5, "expect": {"state": "HOME", "index": 0, "gate": false, "progress": 0.0, "grip": null}}
+      ]
+    },
+    {
+      "name": "abort_overrides_he_return_destination",
+      "steps": [
+        {"op": "menu", "items": ["POWER"], "expect": {"state": "ADAPTIVE"}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING"}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING"}},
+        {"op": "tick", "dt": 1.0, "expect": {"progress": 0.5}},
+        {"op": "event", "value": "HE", "expect": {"state": "OPENING"}},
+        {"op": "abort", "expect": {"state": "OPENING"}},
+        {"op": "tick", "dt": 1.0, "expect": {"state": "HOME", "progress": 0.0, "grip": null}}
+      ]
+    },
+    {
+      "name": "abort_from_menu_goes_home_immediately",
+      "steps": [
+        {"op": "menu", "items": ["POWER", "PINCH"], "expect": {"state": "ADAPTIVE"}},
+        {"op": "event", "value": "SF", "expect": {"index": 1}},
+        {"op": "abort", "expect": {"state": "HOME", "index": 0}},
+        {"op": "menu", "items": ["TRIPOD"], "expect": {"state": "ADAPTIVE", "index": 0}}
       ]
     },
     {

@@ -20,12 +20,17 @@ ACTUATION_STATES = (FsmState.CLOSING, FsmState.HOLDING, FsmState.OPENING)
 class MyoGripFsm:
     def __init__(self, config: FsmConfig | None = None, full: list[Grip] | None = None):
         self.config = config or FsmConfig()
+        for name in ("close_speed", "open_speed", "he_return_speed"):
+            # A zero speed would trap the hand mid-grip (HE could never finish opening).
+            if not getattr(self.config, name) > 0:
+                raise ValueError(f"FsmConfig.{name} must be > 0")
         self.full: list[Grip] = list(full) if full is not None else full_menu()
         self.progress = 0.0
         self.reset()
 
     def reset(self) -> None:
-        """Return to CAVIA Home and forget the menu snapshot. Progress is kept (hand position)."""
+        """Return to CAVIA Home and forget the menu snapshot. Progress is kept (hand position),
+        so this is only safe with the hand open; use abort() from outside the FSM."""
         self.state = FsmState.HOME
         self.menu_id: int | None = None
         self.adaptive: list[Grip] = []
@@ -34,6 +39,7 @@ class MyoGripFsm:
         self.active_grip: Grip | None = None
         self.confirmed_from: MenuKind | None = None
         self.returning = False
+        self.return_to = FsmState.FULL
         self.last_event: str | None = None
 
     # ---- inputs -------------------------------------------------------------
@@ -81,9 +87,22 @@ class MyoGripFsm:
 
         if self.state in ACTUATION_STATES and event is EmgEvent.HE and not self.returning:
             # HE is the only way out of actuation: controlled opening, then Full Menu (see tick).
-            self.state = FsmState.OPENING
-            self.returning = True
-            self.wait_release = False
+            self._start_return(FsmState.FULL)
+
+    def abort(self) -> None:
+        """Experimenter abort (BLE HOME): go to CAVIA Home, opening the hand first if a grip is active."""
+        self.last_event = "ABORT"
+        if self.state in ACTUATION_STATES:
+            self._start_return(FsmState.HOME)
+        else:
+            self.reset()
+            self.last_event = "ABORT"
+
+    def _start_return(self, destination: FsmState) -> None:
+        self.state = FsmState.OPENING
+        self.returning = True
+        self.return_to = destination
+        self.wait_release = False
 
     def on_activity(self, activity: Activity) -> None:
         """Continuous flexor/extensor activity during actuation. Ignored elsewhere."""
@@ -107,6 +126,7 @@ class MyoGripFsm:
 
     def tick(self, dt: float) -> None:
         """Advance constant-speed grip progression by dt seconds."""
+        dt = max(0.0, dt)  # a clock glitch must never move the hand backwards
         if self.state is FsmState.CLOSING:
             self.progress = min(1.0, self.progress + self.config.close_speed * dt)
         elif self.state is FsmState.OPENING:
@@ -115,6 +135,9 @@ class MyoGripFsm:
             # Fully open stays in actuation so the user can close again (D16); only an HE
             # return ends the grip and offers the Full Menu.
             if self.returning and self.progress <= 0.0:
+                if self.return_to is FsmState.HOME:
+                    self.reset()
+                    return
                 self.state = FsmState.FULL
                 self.selected = 0
                 self.returning = False
