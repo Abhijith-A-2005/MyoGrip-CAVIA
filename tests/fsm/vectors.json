@@ -1,0 +1,117 @@
+{
+  "description": "Shared MyoGrip FSM test vectors. Source of truth for both cavia.fsm.machine (Python) and myogrip_fsm.c (firmware). c_ref = case number in myogrip_selftest.c; diff = intentional change from the current C behaviour that the firmware must adopt.",
+  "config": {"close_speed": 0.5, "open_speed": 0.5, "he_return_speed": 1.0},
+  "full_menu": ["POWER", "PINCH", "TRIPOD", "LATERAL"],
+  "ops": {
+    "menu": "load adaptive menu {items, policy?=TOP_TWO}",
+    "event": "discrete gesture: SF SE LF LE HE REST INVALID",
+    "activity": "continuous: REST FLEX_ACTIVE EXT_ACTIVE INVALID",
+    "tick": "advance time by dt seconds"
+  },
+  "expect_keys": "state, index (selected), gate (wait_release), progress (grip_progress), grip (active_grip, optional)",
+  "sequences": [
+    {
+      "name": "c_selftest_port",
+      "steps": [
+        {"c_ref": 1,  "op": "event", "value": "LF", "expect": {"state": "HOME", "index": 0, "gate": false, "progress": 0.0}},
+        {"c_ref": 2,  "op": "menu", "items": ["POWER", "LATERAL", "PINCH"], "expect": {"state": "ADAPTIVE", "index": 0, "gate": false}},
+        {"c_ref": 3,  "op": "event", "value": "SE", "expect": {"state": "ADAPTIVE", "index": 2, "gate": false}},
+        {"c_ref": 4,  "op": "event", "value": "SF", "expect": {"state": "ADAPTIVE", "index": 0, "gate": false}},
+        {"c_ref": 5,  "op": "event", "value": "SF", "expect": {"state": "ADAPTIVE", "index": 1, "gate": false}},
+        {"c_ref": 6,  "op": "event", "value": "REST", "expect": {"state": "ADAPTIVE", "index": 1, "gate": false}},
+        {"c_ref": 7,  "op": "event", "value": "INVALID", "expect": {"state": "ADAPTIVE", "index": 1, "gate": false}},
+        {"c_ref": 8,  "op": "event", "value": "LF", "expect": {"state": "HOLDING", "index": 1, "gate": true, "grip": "LATERAL", "progress": 0.0}},
+        {"c_ref": 9,  "op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "HOLDING", "index": 1, "gate": true}},
+        {"c_ref": 10, "op": "activity", "value": "REST", "expect": {"state": "HOLDING", "index": 1, "gate": false}},
+        {"c_ref": 11, "op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING", "index": 1, "gate": false}},
+        {"op": "tick", "dt": 1.0, "diff": "grip_progress is new", "expect": {"state": "CLOSING", "progress": 0.5}},
+        {"c_ref": 12, "op": "activity", "value": "REST", "expect": {"state": "HOLDING", "index": 1, "gate": false, "progress": 0.5}},
+        {"c_ref": 13, "op": "activity", "value": "EXT_ACTIVE", "expect": {"state": "OPENING", "index": 1, "gate": false}},
+        {"op": "tick", "dt": 0.5, "expect": {"state": "OPENING", "progress": 0.25}},
+        {"c_ref": 14, "op": "activity", "value": "REST", "expect": {"state": "HOLDING", "index": 1, "gate": false}},
+        {"c_ref": 15, "op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING", "index": 1, "gate": false}},
+        {"c_ref": 16, "op": "activity", "value": "INVALID", "expect": {"state": "HOLDING", "index": 1, "gate": true}},
+        {"c_ref": 17, "op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "HOLDING", "index": 1, "gate": true}},
+        {"c_ref": 18, "op": "activity", "value": "REST", "expect": {"state": "HOLDING", "index": 1, "gate": false, "progress": 0.25}},
+        {"c_ref": 19, "op": "event", "value": "HE", "diff": "C jumps straight to FULL; spec requires controlled opening first", "expect": {"state": "OPENING", "gate": false, "progress": 0.25}},
+        {"op": "tick", "dt": 0.1, "expect": {"state": "OPENING", "progress": 0.15}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "diff": "activity ignored during HE return", "expect": {"state": "OPENING", "progress": 0.15}},
+        {"op": "tick", "dt": 0.5, "expect": {"state": "FULL", "index": 0, "gate": false, "progress": 0.0, "grip": null}},
+        {"c_ref": 20, "op": "event", "value": "SE", "diff": "C full menu has 5 items; full menu is the 4 calibrated grips", "expect": {"state": "FULL", "index": 3, "gate": false}},
+        {"c_ref": 21, "op": "event", "value": "SF", "expect": {"state": "FULL", "index": 0, "gate": false}},
+        {"c_ref": 22, "op": "event", "value": "LE", "expect": {"state": "FULL", "index": 0, "gate": false}},
+        {"c_ref": 23, "op": "event", "value": "REST", "expect": {"state": "FULL", "index": 0, "gate": false}},
+        {"c_ref": 24, "op": "event", "value": "LF", "expect": {"state": "HOLDING", "index": 0, "gate": true, "grip": "POWER"}},
+        {"c_ref": 25, "op": "activity", "value": "REST", "expect": {"state": "HOLDING", "index": 0, "gate": false}},
+        {"c_ref": 26, "op": "activity", "value": "EXT_ACTIVE", "expect": {"state": "OPENING", "index": 0, "gate": false, "progress": 0.0}},
+        {"op": "tick", "dt": 0.02, "diff": "replaces C case 27: fully open returns to FULL without HE", "expect": {"state": "FULL", "index": 0, "gate": false, "grip": null}},
+        {"c_ref": 28, "op": "event", "value": "HE", "expect": {"state": "HOME", "index": 0, "gate": false}},
+        {"c_ref": 29, "op": "menu", "items": ["POWER", "LATERAL", "PINCH"], "expect": {"state": "ADAPTIVE", "index": 0, "gate": false}},
+        {"c_ref": 30, "op": "event", "value": "LE", "expect": {"state": "FULL", "index": 0, "gate": false}},
+        {"c_ref": 31, "op": "event", "value": "HE", "expect": {"state": "HOME", "index": 0, "gate": false}},
+        {"c_ref": 32, "op": "menu", "items": ["POWER", "LATERAL", "PINCH"], "expect": {"state": "ADAPTIVE", "index": 0, "gate": false}},
+        {"c_ref": 33, "op": "event", "value": "HE", "expect": {"state": "HOME", "index": 0, "gate": false}}
+      ]
+    },
+    {
+      "name": "progress_clamps_and_full_open_returns_to_full_menu",
+      "steps": [
+        {"op": "menu", "items": ["POWER", "LATERAL"], "expect": {"state": "ADAPTIVE"}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING", "gate": true, "grip": "POWER"}},
+        {"op": "activity", "value": "REST", "expect": {"state": "HOLDING", "gate": false}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING"}},
+        {"op": "tick", "dt": 3.0, "expect": {"state": "CLOSING", "progress": 1.0}},
+        {"op": "activity", "value": "EXT_ACTIVE", "expect": {"state": "OPENING", "progress": 1.0}},
+        {"op": "tick", "dt": 1.0, "expect": {"state": "OPENING", "progress": 0.5}},
+        {"op": "tick", "dt": 1.0, "expect": {"state": "FULL", "index": 0, "progress": 0.0, "grip": null}}
+      ]
+    },
+    {
+      "name": "single_option_menu_still_requires_LF",
+      "steps": [
+        {"op": "menu", "items": ["LATERAL"], "policy": "ONE_CONFIRM", "expect": {"state": "ADAPTIVE", "index": 0}},
+        {"op": "event", "value": "SF", "expect": {"state": "ADAPTIVE", "index": 0}},
+        {"op": "tick", "dt": 5.0, "expect": {"state": "ADAPTIVE", "progress": 0.0}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING", "gate": true, "grip": "LATERAL"}}
+      ]
+    },
+    {
+      "name": "menu_snapshot_is_frozen_outside_home",
+      "steps": [
+        {"op": "menu", "items": ["POWER", "LATERAL"], "expect": {"state": "ADAPTIVE", "index": 0}},
+        {"op": "event", "value": "SF", "expect": {"state": "ADAPTIVE", "index": 1}},
+        {"op": "menu", "items": ["PINCH"], "expect": {"state": "ADAPTIVE", "index": 1}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING", "grip": "LATERAL"}}
+      ]
+    },
+    {
+      "name": "manual_condition_opens_full_menu_directly",
+      "steps": [
+        {"op": "menu", "items": ["POWER", "PINCH", "TRIPOD", "LATERAL"], "policy": "FULL_MENU", "expect": {"state": "FULL", "index": 0}},
+        {"op": "event", "value": "LE", "expect": {"state": "FULL", "index": 0}},
+        {"op": "event", "value": "HE", "expect": {"state": "HOME"}}
+      ]
+    },
+    {
+      "name": "he_while_already_open_returns_to_full_menu",
+      "steps": [
+        {"op": "menu", "items": ["POWER", "LATERAL"], "expect": {"state": "ADAPTIVE"}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING", "gate": true}},
+        {"op": "event", "value": "HE", "expect": {"state": "OPENING", "gate": false, "progress": 0.0}},
+        {"op": "tick", "dt": 0.0, "expect": {"state": "FULL", "index": 0, "grip": null}}
+      ]
+    },
+    {
+      "name": "inputs_ignored_in_wrong_mode",
+      "steps": [
+        {"op": "menu", "items": ["POWER", "LATERAL"], "expect": {"state": "ADAPTIVE", "index": 0}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "ADAPTIVE", "index": 0}},
+        {"op": "event", "value": "LF", "expect": {"state": "HOLDING", "index": 0}},
+        {"op": "activity", "value": "REST", "expect": {"state": "HOLDING", "gate": false}},
+        {"op": "activity", "value": "FLEX_ACTIVE", "expect": {"state": "CLOSING"}},
+        {"op": "event", "value": "SF", "expect": {"state": "CLOSING", "index": 0}},
+        {"op": "event", "value": "LE", "expect": {"state": "CLOSING", "index": 0}}
+      ]
+    }
+  ]
+}
