@@ -6,10 +6,12 @@ Working end date: **2026-11-22** (5 weeks from 2026-10-19). Status: ☐ todo · 
 
 | Stream | Owners | Scope |
 |---|---|---|
+| FSM — laptop side | Adwaith | Python reference FSM, simulator, CAVIA ↔ FSM integration |
+| FSM — device side | Abhijith | `myogrip_fsm.c`, gesture detector, BLE protocol |
 | Vision pipeline | Diya, Meghna | preprocessing, detection, reticle, functional regions, targeting, vision confidence, failure handling |
 | CAVIA algorithm | Abhijith, Adwaith | candidates, preference scoring, confidence, ranking, adaptive-menu policy, profiles, FSM integration |
 | Dashboard + Evaluation | Adwaith, Meghna | live dashboard, logging, metrics, questionnaires, analysis |
-| EMG detector, firmware, hand, servos, power | **OPEN (Q1)** | gesture detector, PCA9685, grip trajectories, mechanics, power and E-stop |
+| Hand, servos, power | **OPEN (Q1)** | PCA9685, grip trajectories, mechanics, power and E-stop |
 
 ## Milestones
 
@@ -29,10 +31,13 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 
 | Task | Owner | Status |
 |---|---|---|
-| Repo foundation: CLAUDE.md, docs, package layout, cleanup | Adwaith | ◐ |
-| `core/contracts.py`, `core/grips.py`, `core/bus.py`, config | Adwaith | ☐ |
-| Python reference FSM + port of the 33 C selftest vectors as pytest | Abhijith | ☐ |
-| Keyboard EMG emulator (SF/SE/LF/LE/HE + hold keys for flex/ext activity) | Abhijith | ☐ |
+| Repo foundation: CLAUDE.md, docs, package layout, cleanup | Adwaith | ☑ |
+| `core/contracts.py`, `core/grips.py`, `core/bus.py`, config | Adwaith | ☑ |
+| Python reference FSM + shared vectors (`tests/fsm/vectors.json`, ported from the 33 C selftest cases) | Adwaith | ☑ |
+| Keyboard EMG emulator + `python -m cavia.fsm.sim` | Adwaith | ☑ |
+| Update `myogrip_fsm.c` to pass the shared vectors (dynamic menu, `grip_progress` + tick, HE controlled opening, fully-open → FULL, selftest off by default) | Abhijith | ☐ |
+| Offline EMG gesture detector prototype on recorded CSVs (Python) | Abhijith | ☐ |
+| Finalize BLE `MENU` / `EV` / `ST` protocol (`docs/interfaces.md` §7) | Abhijith | ☐ |
 | Refactor `objdet.py` into an importable `VisionPipeline` publishing `VisionResult` | Diya | ☐ |
 | Decide object set (Q2); collect test images/clips per object & region | Meghna | ☐ |
 | Candidate table + preference store + menu policy v1 with unit tests | Adwaith | ☐ |
@@ -49,7 +54,6 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Dashboard: all panels + experimenter controls (user, condition, trial start/end, outcome) | Meghna, Adwaith | ☐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |
-| Offline EMG detector from `data/emg/` CSVs (Python) | Q1 owner | ☐ |
 
 ## Week 3–5 tasks
 

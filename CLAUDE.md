@@ -41,7 +41,10 @@ command burden and selection time without increasing incorrect choices or reduci
 
 ```text
 src/cavia/vision/                 Laptop vision: MJPEG receiver, YOLO detection, reticle, regions, tracker
-src/cavia/                        CAVIA laptop runtime (arbitration, fsm mirror, dashboard, eval) — being built
+src/cavia/core/                   Message contracts, grip library, config, event bus
+src/cavia/fsm/                    Python reference FSM (mirror of firmware) + interactive simulator
+src/cavia/emg/                    EMG input sources (keyboard emulator; detector/replay to come)
+tests/                            pytest suite; tests/fsm/vectors.json = shared FSM spec
 src/firmware/npg-lite-controller/ ESP-IDF firmware for NPG Lite (BLE EMG streaming + MyoGrip FSM). GPL-3.0
 data/emg/                         Recorded EMG sessions (CSV)
 assets/figures/                   Approved figures (FSM diagram, EMG characterization)
@@ -51,6 +54,12 @@ docs/                             Architecture, interfaces, decisions, plan
 ## Commands
 
 ```bash
+# Laptop runtime (from repo root)
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pytest                                               # contracts, FSM vectors, arbitration
+python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM + keyboard EMG, no hardware
+
 # Vision (laptop)
 pip install -r src/cavia/vision/requirements.txt
 CAVIA_CAMERA_IP=<xiao-ip> python src/cavia/vision/objdet.py
@@ -66,6 +75,8 @@ python record-log.py --outfile session.csv --duration 5
 
 - Python 3.11+, type hints, dataclasses for messages. Match surrounding style; keep comments sparse.
 - All cross-module messages follow `docs/interfaces.md`. Change the doc in the same commit as the code.
+- FSM behaviour is pinned by `tests/fsm/vectors.json`, shared by the Python FSM and `myogrip_fsm.c`.
+  Change a behaviour by changing the vectors first, then both implementations.
 - Thresholds and weights live in config, never hard-coded in logic.
 - Every runtime event that matters for evaluation is logged (JSONL), so metrics can be recomputed from logs.
 - When a design choice is made, append it to `docs/decisions.md`.

@@ -4,6 +4,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Date | Decision | Why |
 |---|---|---|---|
+| D13 | 2026-10-19 | FSM behaviour is defined by `tests/fsm/vectors.json`; Python and C FSMs must both pass it. Full Menu = 4 calibrated grips (C test used 5) | One spec, two implementations, no drift |
 | D12 | 2026-10-19 | Evaluation reduced to 3 conditions: C1 Manual cycling, C2 Static CAVIA, C3 Adaptive CAVIA | ~5 weeks left; these three still isolate vision benefit (C2 vs C1) and preference + adaptation benefit (C3 vs C2) |
 | D11 | 2026-10-19 | Dashboard = FastAPI + WebSocket backend, browser UI | Decoupled from vision loop, demo-friendly, parallel frontend work |
 | D10 | 2026-10-19 | FSM authority and gesture detection live on NPG firmware; laptop mirrors state. Prototype in Python first | Actuation must not depend on BLE latency/dropouts |
@@ -21,8 +22,9 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Question | Owner | Needed by |
 |---|---|---|---|
-| Q1 | Who owns EMG gesture detector, hand mechanics, PCA9685/servos, power? | Team | Week 1 |
+| Q1 | Who owns hand mechanics, PCA9685/servos, power? (EMG detector → Abhijith) | Team | Week 1 |
 | Q2 | Controlled object set: COCO proxies (toothbrush = pen, book = box) or fine-tune? | Diya & Meghna | Week 2 |
 | Q3 | Channel 3 role (artifact rejection / intent validation)? | EMG owner | Week 3 |
 | Q4 | Final menu-policy thresholds (V, N, p1, margin) | Abhijith & Adwaith | Pilot, Week 4 |
 | Q5 | Participants: how many, who, ethics/consent form | Team + guide | Week 3 |
+| Q6 | Confirm: extensor activity while already fully open (right after LF) → straight to Full Menu (vector `he_while_already_open…`, C case 26→27) | Abhijith, Adwaith | Week 1 |
