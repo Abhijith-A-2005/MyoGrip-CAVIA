@@ -3,7 +3,7 @@
 //              &script=<t>:<key>[:<hold>],...  presses keys automatically (e.g. 3:s,3.5:a:1.5)
 
 import type {
-  Activity, Box, ClientMessage, GestureKey, Grip, MenuMsg, MenuPolicy, ServerMessage, SessionMsg, SystemMsg,
+  Activity, Box, ClientMessage, Condition, GestureKey, Grip, MenuMsg, MenuPolicy, ServerMessage, SessionMsg, SystemMsg,
   VisionMsg,
 } from "../types/messages";
 import { KeyboardEmg, MockFsm } from "./mockFsm";
@@ -52,6 +52,13 @@ const SCENARIOS: Record<MenuPolicy, Scenario> = {
   },
 };
 
+/** Which scenario a condition shows; Adaptive keeps the current adaptive policy (e.g. ONE_CONFIRM). */
+const SCENARIO_FOR: Record<Condition, (current: Scenario) => Scenario> = {
+  C1_MANUAL: () => SCENARIOS.FULL_MENU,
+  C2_STATIC: () => SCENARIOS.FULL_COMPATIBLE,
+  C3_ADAPTIVE: (current) => (current.condition === "C3_ADAPTIVE" ? current : SCENARIOS.TOP_TWO),
+};
+
 const GESTURE_KEYS = new Set(["w", "a", "s", "d", "e"]);
 const ACTUATION = ["CLOSING", "HOLDING", "OPENING"];
 
@@ -63,9 +70,11 @@ export function mockFrameUrl(params: URLSearchParams): string {
 
 export function startMock(params: URLSearchParams): Transport {
   const policy = (params.get("policy")?.toUpperCase() ?? "TOP_TWO") as MenuPolicy;
-  const scenario = SCENARIOS[policy] ?? SCENARIOS.TOP_TWO;
+  // The drawer can switch condition at runtime; the next menu then uses that condition's scenario.
+  let scenario = SCENARIOS[policy] ?? SCENARIOS.TOP_TWO;
   const cameraLost = params.get("camera") === "lost";
-  const participant = params.get("participant") ?? "P01";
+  let participant = params.get("participant") ?? "P01";
+  let trialActive = false;
 
   const fsm = new MockFsm();
   const keys = new KeyboardEmg();
@@ -74,7 +83,7 @@ export function startMock(params: URLSearchParams): Transport {
   const emit = (msg: ServerMessage) => applyMessage(msg);
 
   let menuId = 0;
-  let trial = 11;
+  let trial = 0;
   let searchStart = 0;
   let lastTick = now();
   let lastSystem = -1;
@@ -82,9 +91,7 @@ export function startMock(params: URLSearchParams): Transport {
   let frameSeq = 0;
   let lastFsmKey = "";
 
-  const session = (): SessionMsg => ({
-    participant, condition: scenario.condition, trial, trial_active: fsm.state !== "HOME",
-  });
+  const session = (): SessionMsg => ({ participant, condition: scenario.condition, trial, trial_active: trialActive });
 
   const system = (t: number): SystemMsg => ({
     camera: cameraLost
@@ -175,7 +182,6 @@ export function startMock(params: URLSearchParams): Transport {
         emit({ type: "menu", data: null });
         searchStart = t + REARM_S;
       } else if (v.state === "LOCKED" && t >= searchStart) {
-        trial += 1;
         const menu = buildMenu(t);
         fsm.loadMenu(menu);
         emit({ type: "menu", data: menu });
@@ -215,9 +221,18 @@ export function startMock(params: URLSearchParams): Transport {
         }
         setHeld([...keys.held]);
         publishFsm(now());
-      } else if (msg.data.action === "set_session") {
-        // Mock keeps the scripted scenario; only the participant label follows the drawer.
-        emit({ type: "session", data: { ...session(), participant: msg.data.participant } });
+      } else {
+        const c = msg.data;
+        if (c.action === "start_trial") {
+          trial += 1;
+          trialActive = true;
+        } else if (c.action === "end_trial") {
+          trialActive = false;
+        } else {
+          participant = c.participant;
+          scenario = SCENARIO_FOR[c.condition](scenario);
+        }
+        emit({ type: "session", data: session() });
       }
     },
     close: () => {

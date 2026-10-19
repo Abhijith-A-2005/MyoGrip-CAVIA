@@ -1,6 +1,14 @@
 import { attachKeyboard } from "./keyboard";
 import { mockFrameUrl, startMock } from "./mock";
+import type { ClientMessage } from "../types/messages";
 import { connectBackend, type Transport } from "./ws";
+
+let current: Transport | null = null;
+
+/** Send a control message to whichever transport is active (backend or mock). */
+export function send(msg: ClientMessage) {
+  current?.send(msg);
+}
 
 const params = () => new URLSearchParams(window.location.search);
 
@@ -17,12 +25,14 @@ function backendHost(p = params()): string {
 export function connect(): { transport: Transport; dispose: () => void } {
   const p = params();
   const transport = isMock(p) ? startMock(p) : connectBackend(`ws://${backendHost(p)}/ws`);
+  current = transport;
   const detachKeys = attachKeyboard(transport);
   return {
     transport,
     dispose: () => {
       detachKeys();
       transport.close();
+      if (current === transport) current = null;
     },
   };
 }
