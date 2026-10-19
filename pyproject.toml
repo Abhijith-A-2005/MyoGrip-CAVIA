@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cavia"
+version = "0.1.0"
+description = "MyoGrip CAVIA laptop runtime: vision, arbitration, FSM mirror, dashboard and evaluation"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+vision = ["ultralytics", "opencv-python", "numpy"]
+dashboard = ["fastapi", "uvicorn[standard]"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cavia*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
