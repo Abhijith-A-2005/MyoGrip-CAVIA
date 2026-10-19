@@ -88,4 +88,10 @@ python record-log.py --outfile session.csv --duration 5
 - Every runtime event that matters for evaluation is logged (JSONL), so metrics can be recomputed from logs.
 - When a design choice is made, append it to `docs/decisions.md`.
 - Tag uncertain statements as **CONFIRMED / ASSUMPTION / OPEN QUESTION / FUTURE OPTION**.
-- Commit messages: short imperative one-liners (e.g. `Add CAVIA preference store`), no trailers.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>): <summary>`,
+  short imperative one-liner, lowercase summary, no trailing period, no body or trailers.
+  - Types: `feat` new feature · `fix` bug fix · `docs` documentation · `refactor` restructure, no behaviour change ·
+    `test` tests only · `chore` tooling/deps/config · `build` packaging/firmware build · `perf` performance · `style` formatting
+  - Scopes (optional): `core`, `fsm`, `emg`, `vision`, `arbitration`, `dashboard`, `eval`, `firmware`, `xiao`
+  - Examples: `feat(arbitration): add preference store` · `fix(vision): reset tracker on camera switch` ·
+    `docs: update team plan`
