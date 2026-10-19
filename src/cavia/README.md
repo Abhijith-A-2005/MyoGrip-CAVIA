@@ -16,4 +16,14 @@ This directory contains the current work-in-progress implementation of Context-A
 Install the dependencies:
 
 ```powershell
-pip install -r requirements.txt
+pip install -r requirements.txt```
+
+Run the vision pipeline against the XIAO camera stream:
+
+```bash
+cd vision
+CAVIA_CAMERA_IP=<xiao-ip> python objdet.py
+```
+
+Press `Q` or `Esc` to quit. Interface contracts and the planned package layout are in
+[`docs/interfaces.md`](../../docs/interfaces.md) and [`docs/architecture.md`](../../docs/architecture.md).

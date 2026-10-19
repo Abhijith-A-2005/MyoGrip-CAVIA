@@ -33,3 +33,6 @@ src/firmware/npg-lite-controller/test/*.csv
 *.log
 .DS_Store
 Thumbs.db
+
+# md files
+MyoGrip_CAVIA_Complete_AI_Context.md
