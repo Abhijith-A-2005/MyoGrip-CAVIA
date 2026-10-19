@@ -1,0 +1,269 @@
+/* The hand panel reads as an instrument: a column of light and a few large numbers. */
+.hand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px 24px 18px;
+  border-radius: var(--r-panel);
+  background: linear-gradient(180deg, rgb(4 93 3 / 0.18) 0%, rgb(1 22 3 / 0.62) 34%, rgb(1 6 0 / 0.78) 100%);
+  isolation: isolate;
+  --state: var(--state-home);
+}
+
+.hand[data-state="ADAPTIVE"] {
+  --state: var(--state-adaptive);
+}
+.hand[data-state="FULL"] {
+  --state: var(--state-full);
+}
+.hand[data-state="CLOSING"] {
+  --state: var(--state-closing);
+}
+.hand[data-state="HOLDING"] {
+  --state: var(--state-holding);
+}
+.hand[data-state="OPENING"] {
+  --state: var(--state-opening);
+}
+
+/* Same rim light as the other panels. */
+.hand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgb(140 245 154 / 0.3) 0%, rgb(4 93 3 / 0.42) 18%, rgb(2 63 3 / 0.2) 55%, rgb(2 63 3 / 0.06) 100%);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: background var(--dur-focus) var(--ease-focus);
+}
+
+.hand[data-focused]::before {
+  background: linear-gradient(180deg, rgb(140 245 154 / 0.85) 0%, rgb(3 230 3 / 0.5) 14%, rgb(4 93 3 / 0.4) 45%, rgb(2 63 3 / 0.14) 100%);
+}
+
+.hand-caption {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--sage);
+}
+
+.hand[data-focused] .hand-caption {
+  color: var(--mint);
+}
+
+.hand-main {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  padding: 14px 0 12px;
+}
+
+/* ---- the light column ---- */
+.hand-column {
+  position: relative;
+  flex: none;
+  width: 136px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.hand-column-track {
+  position: relative;
+  width: 64px;
+  height: 100%;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(2 63 3 / 0.55), rgb(1 22 3 / 0.9));
+  box-shadow:
+    inset 0 0 0 1px var(--deep),
+    inset 0 10px 24px rgb(0 0 0 / 0.5);
+  overflow: hidden;
+}
+
+.hand-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgb(140 245 154 / 0.14);
+}
+
+.hand-column-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--state) 35%, transparent), color-mix(in srgb, var(--state) 85%, transparent));
+  transition:
+    transform 90ms linear,
+    background 300ms;
+}
+
+/* The bright line on top of the fill, like light caught on a meniscus. */
+.hand-meniscus {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  margin-bottom: -1.5px;
+  border-radius: 3px;
+  background: var(--state);
+  box-shadow: 0 0 16px var(--state);
+  opacity: 0;
+  transition:
+    bottom 90ms linear,
+    opacity 300ms;
+}
+
+.hand[data-moving] .hand-meniscus {
+  opacity: 1;
+}
+
+.hand-column-end {
+  position: absolute;
+  left: 76px;
+  font-size: 14px;
+  color: var(--moss);
+}
+
+.hand-column-top {
+  top: 0;
+}
+
+.hand-column-bottom {
+  bottom: 0;
+}
+
+/* ---- readout ---- */
+.hand-readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.hand-state {
+  font-family: var(--font-display);
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--state);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--state) 45%, transparent);
+  transition: color 300ms;
+}
+
+.hand-pct {
+  margin-top: 8px;
+  font-size: 64px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ivory);
+}
+
+.hand-pct span {
+  margin-left: 4px;
+  font-size: 26px;
+  color: var(--sage);
+}
+
+.hand-grip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  min-height: 48px;
+}
+
+.hand-grip-glyph {
+  flex: none;
+  color: var(--state);
+}
+
+.hand-grip-name {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--t-grip-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ivory);
+}
+
+.hand-grip-from {
+  display: block;
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+.hand-grip-none {
+  color: var(--moss);
+}
+
+.hand-say {
+  margin-top: 14px;
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+.hand-say[data-tone="notice"] {
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.hand-say[data-tone="warn"] {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ---- state rail ---- */
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  padding: 14px 0 0;
+  list-style: none;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgb(4 93 3 / 0.9), transparent) 1;
+}
+
+.rail-gap {
+  width: 1px;
+  height: 18px;
+  background: var(--deep);
+}
+
+.rail-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  color: var(--moss);
+  transition: color 250ms;
+}
+
+.rail-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--deep);
+  transition:
+    background 250ms,
+    box-shadow 250ms;
+}
+
+.rail-step[data-current] {
+  color: var(--ivory);
+  font-weight: 600;
+}
+
+.rail-step[data-current] .rail-dot {
+  background: var(--state);
+  box-shadow: 0 0 10px var(--state);
+}

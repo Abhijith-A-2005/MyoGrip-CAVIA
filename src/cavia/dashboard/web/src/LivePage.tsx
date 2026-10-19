@@ -1,5 +1,7 @@
 import { CameraPanel } from "./components/CameraPanel";
+import { EmgRibbon } from "./components/EmgRibbon";
 import { FocusLight } from "./components/FocusLight";
+import { HandPanel } from "./components/HandPanel";
 import { Header } from "./components/Header";
 import { AdaptiveMenu, FullMenu } from "./components/Menus";
 import { Panel } from "./components/Panel";
@@ -22,7 +24,7 @@ export function LivePage() {
       <div className="live-top">
         <CameraPanel focused={focus === "camera"} />
         <TargetPanel />
-        <Panel area="hand" title="Hand" focused={actuating} />
+        <HandPanel focused={actuating} />
       </div>
 
       <div className="live-menus">
@@ -49,7 +51,7 @@ export function LivePage() {
         </Panel>
       </div>
 
-      <footer className="live-ribbon" aria-label="EMG events" />
+      <EmgRibbon />
     </div>
   );
 }

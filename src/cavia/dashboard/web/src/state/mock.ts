@@ -158,10 +158,12 @@ export function startMock(params: URLSearchParams): Transport {
 
     const activity = keys.activity();
     fsm.onActivity(activity);
-    if (activity !== lastActivity && ACTUATION.includes(fsm.state)) {
-      emit({ type: "emg", data: { ts: t, source: "keyboard", activity } });
+    // Activity only matters in actuation; leaving it always closes the last span with a rest.
+    const reported: Activity = ACTUATION.includes(fsm.state) ? activity : "REST";
+    if (reported !== lastActivity) {
+      emit({ type: "emg", data: { ts: t, source: "keyboard", activity: reported } });
+      lastActivity = reported;
     }
-    lastActivity = activity;
     fsm.tick(dt);
 
     const v = vision(t);

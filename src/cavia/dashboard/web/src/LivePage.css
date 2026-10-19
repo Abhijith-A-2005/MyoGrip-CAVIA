@@ -9,8 +9,7 @@
 }
 
 .live-top,
-.live-menus,
-.live-ribbon {
+.live-menus {
   position: relative;
   z-index: 2;
 }
@@ -44,12 +43,6 @@
 
 .live[data-focus="full"] .menu-full {
   flex-grow: 56;
-}
-
-/* The ribbon is a hairline timeline, not a card. */
-.live-ribbon {
-  border-top: 1px solid transparent;
-  border-image: linear-gradient(90deg, transparent, rgb(4 93 3 / 0.9) 12%, rgb(4 93 3 / 0.9) 88%, transparent) 1;
 }
 
 .menu-reason {

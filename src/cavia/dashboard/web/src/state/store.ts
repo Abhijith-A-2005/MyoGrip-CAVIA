@@ -3,16 +3,19 @@ import type { EmgMsg, ServerMessage, Snapshot } from "../types/messages";
 
 export type Link = "connecting" | "open" | "reconnecting" | "mock";
 
+export type EmgEntry = EmgMsg & { seq: number; at: number };
+
 export type DashboardState = Snapshot & {
   link: Link;
   /** Gesture keys currently held (keyboard emulator), for the key pad. */
   held: string[];
   /** Monotonic counter so the ribbon can key events uniquely. */
   emgSeq: number;
-  emg: (EmgMsg & { seq: number })[];
+  /** `at` is the local arrival time (performance.now), so the ribbon is independent of the backend clock. */
+  emg: EmgEntry[];
 };
 
-const EMG_KEEP = 24;
+const EMG_KEEP = 40;
 
 let state: DashboardState = {
   vision: null,
@@ -34,15 +37,15 @@ function set(next: Partial<DashboardState>) {
   listeners.forEach((l) => l());
 }
 
-function pushEmg(list: DashboardState["emg"], msg: EmgMsg, seq: number) {
-  return [...list, { ...msg, seq }].slice(-EMG_KEEP);
+function pushEmg(list: EmgEntry[], msg: EmgMsg, seq: number) {
+  return [...list, { ...msg, seq, at: performance.now() }].slice(-EMG_KEEP);
 }
 
 export function applyMessage(msg: ServerMessage) {
   switch (msg.type) {
     case "snapshot": {
       let seq = state.emgSeq;
-      let emg: DashboardState["emg"] = [];
+      let emg: EmgEntry[] = [];
       for (const e of msg.data.emg_recent) emg = pushEmg(emg, e, ++seq);
       set({ ...msg.data, emg, emgSeq: seq });
       break;
