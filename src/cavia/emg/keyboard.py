@@ -1,79 +1,65 @@
 """Keyboard stand-in for EMG while hardware is unavailable.
 
-Terminals do not report key-up, so actuation activity is latched (toggle) rather than held.
+Menu mode: one key press = one discrete gesture (W SE up, S SF down, A LF confirm, D LE full menu, E HE back).
+Actuation mode: holding A = flexor active (close), holding D = extensor active (open), nothing held = rest.
+
+Mirrors the real EMG rules: one press emits at most one event (no auto-repeat), a gesture started while
+another gesture key is still held is ambiguous and becomes INVALID, and A + D together is co-contraction
+(INVALID activity). Needs real key-up events, so it is driven by a GUI (see cavia.fsm.sim), not a terminal.
 """
 
 from __future__ import annotations
 
-import os
-import sys
-import time
+from cavia.core.contracts import Activity, EmgEvent
 
-from cavia.core.contracts import Activity, EmgEvent, EmgInput
-
-EVENT_KEYS = {
-    "1": EmgEvent.SF,
-    "2": EmgEvent.SE,
-    "3": EmgEvent.LF,
-    "4": EmgEvent.LE,
-    "5": EmgEvent.HE,
+GESTURE_KEYS: dict[str, EmgEvent] = {
+    "w": EmgEvent.SE,   # previous / up
+    "s": EmgEvent.SF,   # next / down
+    "a": EmgEvent.LF,   # confirm
+    "d": EmgEvent.LE,   # full menu
+    "e": EmgEvent.HE,   # back / cancel
 }
 
-ACTIVITY_KEYS = {
-    "f": Activity.FLEX_ACTIVE,
-    "e": Activity.EXT_ACTIVE,
-    " ": Activity.REST,
-    "x": Activity.INVALID,
-}
+FLEX_KEY = "a"
+EXT_KEY = "d"
 
-HELP = (
-    "EMG keys  1 SF next | 2 SE prev | 3 LF confirm | 4 LE full menu | 5 HE back\n"
-    "Actuation f flex (close) | e extend (open) | space rest (hold) | x invalid\n"
-    "Sim       m load mock menu (from HOME) | q quit"
-)
-
-
-def key_to_input(key: str, ts: float) -> EmgInput | None:
-    if key in EVENT_KEYS:
-        return EmgInput(ts=ts, source="keyboard", event=EVENT_KEYS[key])
-    if key.lower() in ACTIVITY_KEYS:
-        return EmgInput(ts=ts, source="keyboard", activity=ACTIVITY_KEYS[key.lower()])
-    return None
+HELP = [
+    "W  up (SE)        S  down (SF)",
+    "A  confirm (LF)   D  full menu (LE)",
+    "E  back / cancel (HE)",
+    "Actuation: hold A = close, hold D = open, release = hold",
+    "After confirming, release A before holding it again to close",
+    "M  reload menu (from HOME)   Q / Esc  quit",
+]
 
 
-class KeyReader:
-    """Non-blocking single-key reader: termios on Linux/macOS, msvcrt on Windows."""
+class KeyboardEmg:
+    def __init__(self) -> None:
+        self.held: set[str] = set()
 
-    def __enter__(self) -> KeyReader:
-        if os.name != "nt":
-            import termios
-            import tty
+    def press(self, key: str) -> EmgEvent | None:
+        """Key went down. Returns the discrete gesture, or None for non-gesture keys and repeats."""
+        key = key.lower()
+        if key not in GESTURE_KEYS or key in self.held:
+            return None
+        ambiguous = bool(self.held)
+        self.held.add(key)
+        return EmgEvent.INVALID if ambiguous else GESTURE_KEYS[key]
 
-            self._fd = sys.stdin.fileno()
-            self._saved = termios.tcgetattr(self._fd)
-            tty.setcbreak(self._fd)
-        return self
+    def release(self, key: str) -> None:
+        self.held.discard(key.lower())
 
-    def __exit__(self, *exc: object) -> None:
-        if os.name != "nt":
-            import termios
+    def release_all(self) -> None:
+        """Window lost focus: key-ups will never arrive, so treat everything as released."""
+        self.held.clear()
 
-            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._saved)
-
-    def read(self, timeout: float) -> str | None:
-        """Return one key, or None if nothing was pressed within `timeout` seconds."""
-        if os.name == "nt":
-            import msvcrt
-
-            deadline = time.monotonic() + timeout
-            while True:
-                if msvcrt.kbhit():
-                    return msvcrt.getwch()
-                if time.monotonic() >= deadline:
-                    return None
-                time.sleep(0.005)
-
-        import select
-
-        ready, _, _ = select.select([sys.stdin], [], [], timeout)
-        return sys.stdin.read(1) if ready else None
+    def activity(self) -> Activity:
+        flex = FLEX_KEY in self.held
+        ext = EXT_KEY in self.held
+        if flex and ext:
+            return Activity.INVALID
+        if flex:
+            return Activity.FLEX_ACTIVE
+        if ext:
+            return Activity.EXT_ACTIVE
+        return Activity.REST

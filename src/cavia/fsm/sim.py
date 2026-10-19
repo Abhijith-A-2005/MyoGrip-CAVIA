@@ -1,21 +1,36 @@
 """Interactive FSM simulator: mock CAVIA menu + keyboard EMG, no hardware.
 
     python -m cavia.fsm.sim --menu LATERAL,PINCH
+
+Opens a window (needs real key press/release events). Install with: pip install -e ".[sim]"
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 import time
+from collections import deque
 
 from cavia.core.config import load_config
 from cavia.core.contracts import (
-    Activity, Condition, FsmState, Grip, MenuConfidence, MenuContext, MenuPolicy, MenuProposal,
+    Condition, EmgEvent, FsmState, Grip, MenuConfidence, MenuContext, MenuPolicy, MenuProposal,
 )
-from cavia.core.grips import full_menu
-from cavia.emg.keyboard import HELP, KeyReader, key_to_input
+from cavia.core.grips import GRIP_LIBRARY, full_menu
+from cavia.emg.keyboard import GESTURE_KEYS, HELP, KeyboardEmg
 from cavia.fsm.machine import ACTUATION_STATES, MyoGripFsm
+
+WIDTH, HEIGHT = 980, 560
+MAX_TICK = 0.1
+BG, PANEL, TEXT, MUTED = (24, 26, 31), (36, 39, 46), (230, 232, 236), (140, 146, 158)
+ACCENT = (90, 160, 255)
+STATE_COLORS = {
+    FsmState.HOME: (140, 146, 158),
+    FsmState.ADAPTIVE: (90, 160, 255),
+    FsmState.FULL: (170, 120, 255),
+    FsmState.CLOSING: (255, 150, 60),
+    FsmState.HOLDING: (240, 200, 70),
+    FsmState.OPENING: (80, 200, 120),
+}
 
 
 def mock_proposal(items: list[Grip], policy: MenuPolicy, menu_id: int) -> MenuProposal:
@@ -27,27 +42,139 @@ def mock_proposal(items: list[Grip], policy: MenuPolicy, menu_id: int) -> MenuPr
     )
 
 
-def render(fsm: MyoGripFsm, latched: Activity) -> str:
+class SimApp:
+    """Simulation logic, independent of the window so it can be driven by tests."""
+
+    def __init__(self, fsm: MyoGripFsm, items: list[Grip], policy: MenuPolicy):
+        self.fsm = fsm
+        self.items = items
+        self.policy = policy
+        self.keys = KeyboardEmg()
+        self.menu_id = 0
+        self.log: deque[str] = deque(maxlen=9)
+        self.started = time.monotonic()
+        self.quit = False
+        self._prev_state = fsm.state
+        self.load_menu()
+
+    def note(self, text: str) -> None:
+        self.log.appendleft(f"{time.monotonic() - self.started:6.1f}s  {text}")
+
+    def load_menu(self) -> None:
+        if self.fsm.state is not FsmState.HOME:
+            self.note("M ignored: not at HOME")
+            return
+        self.menu_id += 1
+        self.fsm.load_menu(mock_proposal(self.items, self.policy, self.menu_id))
+        self.note(f"menu #{self.menu_id} -> {self.fsm.state.value}")
+        self._prev_state = self.fsm.state
+
+    def key_down(self, name: str) -> None:
+        name = name.lower()
+        if name in ("q", "escape"):
+            self.quit = True
+        elif name == "m":
+            self.load_menu()
+        else:
+            event = self.keys.press(name)
+            if event is not None:
+                self.fsm.on_event(event)
+                if event is EmgEvent.INVALID:
+                    self.note("INVALID: another key held")
+
+    def key_up(self, name: str) -> None:
+        self.keys.release(name)
+
+    def focus_lost(self) -> None:
+        if self.keys.held:
+            self.note("focus lost: keys released")
+        self.keys.release_all()
+
+    def step(self, dt: float) -> None:
+        # Activity is a continuous stream on the device; feed the held-key state every tick.
+        self.fsm.on_activity(self.keys.activity())
+        # A stalled window (dragging, suspend) must not jump the hand in one tick.
+        self.fsm.tick(min(dt, MAX_TICK))
+        if self.fsm.state is not self._prev_state:
+            grip = self.fsm.active_grip.name if self.fsm.active_grip else "-"
+            self.note(f"{self._prev_state.value} -> {self.fsm.state.value}  "
+                      f"{grip}  p={self.fsm.progress:.2f}")
+            self._prev_state = self.fsm.state
+
+
+def draw(app: SimApp, screen, fonts) -> None:
+    import pygame
+
+    big, mid, small = fonts
+    fsm = app.fsm
+    screen.fill(BG)
+
+    def text(s, pos, font=mid, color=TEXT):
+        screen.blit(font.render(s, True, color), pos)
+
+    state_color = STATE_COLORS[fsm.state]
+    text("MyoGrip FSM simulator", (24, 18), small, MUTED)
+    pygame.draw.rect(screen, state_color, (24, 44, 220, 44), border_radius=8)
+    text(fsm.state.value, (38, 52), big, BG)
+    flags = [f for f, on in (("GATE: release first", fsm.wait_release),
+                             ("RETURNING TO OPEN", fsm.returning)) if on]
+    text("   ".join(flags), (258, 58), small, (255, 120, 120))
+
+    # Menu panel: vertical list, as on the real interface.
+    pygame.draw.rect(screen, PANEL, (24, 104, 360, 300), border_radius=8)
     items = fsm.current_items()
     if items:
-        menu = " ".join(f">{g.name}<" if i == fsm.selected else g.name for i, g in enumerate(items))
+        header = "ADAPTIVE MENU" if fsm.state is FsmState.ADAPTIVE else "FULL MENU (all calibrated)"
+        text(header, (40, 116), small, MUTED)
+        for i, grip in enumerate(items):
+            y = 146 + i * 48
+            if i == fsm.selected:
+                pygame.draw.rect(screen, ACCENT, (36, y - 6, 336, 40), border_radius=6)
+            text(GRIP_LIBRARY[grip].label, (52, y), mid, BG if i == fsm.selected else TEXT)
+    elif fsm.state in ACTUATION_STATES:
+        text("ACTIVE GRIP", (40, 116), small, MUTED)
+        text(GRIP_LIBRARY[fsm.active_grip].label, (40, 146), big)
+        text(f"from {fsm.confirmed_from.value.lower()} menu", (40, 186), small, MUTED)
     else:
-        menu = "-"
-    filled = round(fsm.progress * 20)
-    bar = "#" * filled + "." * (20 - filled)
-    grip = fsm.active_grip.name if fsm.active_grip else "-"
-    flags = " GATE" if fsm.wait_release else ""
-    flags += " RETURN" if fsm.returning else ""
-    activity = f" act={latched.value}" if fsm.state in ACTUATION_STATES else ""
-    return (f"[{fsm.state.value:8}] {menu} | grip {grip} [{bar}] {fsm.progress:.2f}"
-            f"{flags}{activity} | last {fsm.last_event or '-'}")
+        text("CAVIA HOME", (40, 116), small, MUTED)
+        text("Waiting for a menu - press M", (40, 146), mid, MUTED)
+
+    # Grip progress: vertical bar, 0 = open (bottom) to 1 = closed (top).
+    bx, by, bw, bh = 404, 104, 60, 300
+    pygame.draw.rect(screen, PANEL, (bx, by, bw, bh), border_radius=8)
+    fill = round(bh * fsm.progress)
+    if fill:
+        pygame.draw.rect(screen, state_color, (bx, by + bh - fill, bw, fill), border_radius=8)
+    text(f"{fsm.progress:.2f}", (bx + 6, by + bh + 8), mid)
+    text("closed", (bx + 70, by), small, MUTED)
+    text("open", (bx + 70, by + bh - 18), small, MUTED)
+
+    # Held keys and the EMG signal they stand for.
+    kx = 548
+    text("KEYS HELD", (kx, 104), small, MUTED)
+    for i, key in enumerate(GESTURE_KEYS):
+        held = key in app.keys.held
+        rect = (kx + i * 52, 128, 44, 44)
+        pygame.draw.rect(screen, ACCENT if held else PANEL, rect, border_radius=6)
+        text(key.upper(), (rect[0] + 14, rect[1] + 10), mid, BG if held else TEXT)
+    text(f"activity  {app.keys.activity().value}", (kx, 184), small)
+    text(f"last      {fsm.last_event or '-'}", (kx, 206), small)
+    text("EVENT LOG", (kx, 240), small, MUTED)
+    for i, line in enumerate(app.log):
+        text(line, (kx, 262 + i * 18), small, TEXT if i == 0 else MUTED)
+
+    for i, line in enumerate(HELP):
+        text(line, (24, 446 + i * 18), small, MUTED)
 
 
 def parse_grips(text: str) -> list[Grip]:
     try:
-        return [Grip[name.strip().upper()] for name in text.split(",") if name.strip()]
+        grips = [Grip[name.strip().upper()] for name in text.split(",") if name.strip()]
     except KeyError as e:
-        raise SystemExit(f"Unknown grip {e}; choose from {[g.name for g in Grip]}")
+        raise SystemExit(f"Unknown grip {e}; choose from {[g.name for g in Grip if g is not Grip.OPEN]}")
+    if not grips or Grip.OPEN in grips:
+        raise SystemExit("--menu needs at least one grasp grip (OPEN is not a menu choice)")
+    return grips
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -55,52 +182,39 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--menu", default="LATERAL,PINCH", help="adaptive menu grips, comma-separated")
     parser.add_argument("--policy", default="TOP_TWO", choices=[p.value for p in MenuPolicy])
     parser.add_argument("--config", help="TOML config overriding [fsm] speeds")
-    parser.add_argument("--hz", type=float, default=50.0, help="FSM tick rate")
+    parser.add_argument("--hz", type=float, default=60.0, help="FSM tick / redraw rate")
     args = parser.parse_args(argv)
 
-    items = parse_grips(args.menu)
-    policy = MenuPolicy(args.policy)
-    fsm = MyoGripFsm(load_config(args.config).fsm)
-    menu_id = 0
-    latched = Activity.REST
+    try:
+        import pygame
+    except ImportError:
+        raise SystemExit('The simulator needs pygame-ce: pip install -e ".[sim]"')
 
-    print(HELP, "\n")
-    menu_id += 1
-    fsm.load_menu(mock_proposal(items, policy, menu_id))
+    app = SimApp(MyoGripFsm(load_config(args.config).fsm), parse_grips(args.menu), MenuPolicy(args.policy))
 
-    period = 1.0 / args.hz
-    last = time.monotonic()
-    prev_state = None
-    with KeyReader() as keys:
-        while True:
-            key = keys.read(period)
-            now = time.monotonic()
+    pygame.init()
+    pygame.key.set_repeat()  # no auto-repeat: one press = one gesture
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("MyoGrip FSM simulator")
+    fonts = (pygame.font.Font(None, 40), pygame.font.Font(None, 30), pygame.font.Font(None, 22))
+    clock = pygame.time.Clock()
 
-            if key == "q":
-                break
-            if key == "m" and fsm.state is FsmState.HOME:
-                menu_id += 1
-                fsm.load_menu(mock_proposal(items, policy, menu_id))
-            elif key is not None and (inp := key_to_input(key, now)) is not None:
-                if inp.event is not None:
-                    fsm.on_event(inp.event)
-                else:
-                    latched = inp.activity
-
-            # Activity is a continuous stream on the device; replay the latched value every tick.
-            if fsm.state not in ACTUATION_STATES:
-                latched = Activity.REST
-            fsm.on_activity(latched)
-            fsm.tick(now - last)
-            last = now
-
-            if fsm.state is not prev_state:
-                # Keep a scrolling history of state changes above the live line.
-                sys.stdout.write("\r\x1b[K" + render(fsm, latched) + "\n")
-                prev_state = fsm.state
-            sys.stdout.write("\r\x1b[K" + render(fsm, latched))
-            sys.stdout.flush()
-    print()
+    try:
+        while not app.quit:
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    app.quit = True
+                elif ev.type == pygame.KEYDOWN:
+                    app.key_down(pygame.key.name(ev.key))
+                elif ev.type == pygame.KEYUP:
+                    app.key_up(pygame.key.name(ev.key))
+                elif ev.type == pygame.WINDOWFOCUSLOST:
+                    app.focus_lost()
+            app.step(clock.tick(args.hz) / 1000.0)
+            draw(app, screen, fonts)
+            pygame.display.flip()
+    finally:
+        pygame.quit()
 
 
 if __name__ == "__main__":
