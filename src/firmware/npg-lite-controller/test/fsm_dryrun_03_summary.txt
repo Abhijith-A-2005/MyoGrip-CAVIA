@@ -1,0 +1,18 @@
+============================================================
+NPG-Lite Data Collection Summary
+============================================================
+
+Total samples received: 15100
+Samples per channel: 15100
+Missing samples detected: 0
+
+First sample received: 2026-10-16 12:14:44.716 IST
+Last sample received:  2026-10-16 12:15:45.045 IST
+
+Total time elapsed: 00:01:00
+Total time elapsed (seconds): 60.329
+
+Expected sample rate: 250.0 Hz
+Actual sample rate: 250.29 Hz
+
+============================================================
