@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-vision = ["ultralytics", "opencv-python", "numpy"]
+vision = ["ultralytics", "opencv-python", "numpy", "python-dotenv"]
 dashboard = ["fastapi", "uvicorn[standard]"]
 dev = ["pytest"]
 

@@ -4,6 +4,7 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 
 | # | Date | Decision | Why |
 |---|---|---|---|
+| D14 | 2026-10-19 | Camera `auto` mode with laptop-webcam fallback is a temporary development aid; removed or pinned to `xiao` before pilot/evaluation trials | Only one XIAO exists; teammates need to test vision without it |
 | D13 | 2026-10-19 | FSM behaviour is defined by `tests/fsm/vectors.json`; Python and C FSMs must both pass it. Full Menu = 4 calibrated grips (C test used 5) | One spec, two implementations, no drift |
 | D12 | 2026-10-19 | Evaluation reduced to 3 conditions: C1 Manual cycling, C2 Static CAVIA, C3 Adaptive CAVIA | ~5 weeks left; these three still isolate vision benefit (C2 vs C1) and preference + adaptation benefit (C3 vs C2) |
 | D11 | 2026-10-19 | Dashboard = FastAPI + WebSocket backend, browser UI | Decoupled from vision loop, demo-friendly, parallel frontend work |

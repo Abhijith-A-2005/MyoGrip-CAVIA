@@ -38,7 +38,7 @@ so CAVIA, the dashboard and the evaluation pipeline never wait on hardware.
 ```text
 src/cavia/
 ├── core/          contracts.py (message dataclasses), grips.py (grip library), config.py, bus.py (pub/sub)
-├── vision/        stream receiver, detector, regions, tracker → publishes VisionResult
+├── vision/        camera source (XIAO / laptop fallback), detector, regions, tracker → publishes VisionResult
 ├── arbitration/   candidates.py, preferences.py, confidence.py, menu_policy.py, profiles.py
 ├── fsm/           Python reference FSM (mirror of myogrip_fsm.c) + test vectors
 ├── emg/           offline gesture detector (from CSV), keyboard emulator, replay source
@@ -54,11 +54,21 @@ everything else is asyncio. Every bus message is also appended to the session JS
 ## 3. Vision pipeline (Diya & Meghna)
 
 ```text
-frame (newest only, stale > 1 s dropped) → YOLO detect → filter to controlled classes
+CameraSource (XIAO MJPEG, or laptop webcam in dev) → newest frame only, stale > 1 s dropped
+  → YOLO detect → filter to controlled classes
   → reticle hit-test → class-specific region rule → candidate {object, region, det_conf, reticle_score}
   → RegionTracker (window 8, min 5 frames, hysteresis) → NO_OBJECT | SEARCHING | LOCKED | LOST
   → VisionResult (region_confidence = 0.4·det + 0.2·reticle + 0.4·stability)   [ASSUMPTION weights]
 ```
+
+**Camera source (`vision/camera_source.py`).** Modes `auto` / `xiao` / `laptop`, set in `vision/.env`
+and switchable at runtime (L / X / A). `auto` prefers the XIAO, falls back to the laptop webcam,
+and returns to the XIAO after `XIAO_RETURN_DELAY` of stable frames. Every camera switch or reconnect
+starts a new session and resets the tracker. **TEMPORARY (D14):** the fallback exists so teammates
+without the XIAO can develop; trials use the XIAO only.
+
+**XIAO sensor profile (`src/firmware/xiao-camera/xiao_camera_profile.h`):** VGA 640×480, JPEG quality 12,
+horizontal mirror + vertical flip (mount orientation), AEC2 on.
 
 **Controlled object set — OPEN.** Spec: mug, bottle, pen, spoon, phone, remote, small box.
 COCO (current YOLO) has no pen or box; code uses `toothbrush` and `book` as proxies.

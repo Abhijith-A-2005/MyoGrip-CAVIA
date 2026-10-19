@@ -36,16 +36,19 @@ command burden and selection time without increasing incorrect choices or reduci
 - Wording: say "functional grasp-region estimate / class-specific region rule", never "affordance detection".
   Never claim force control, medical-grade performance, or intent prediction.
 - The FSM firmware selftest (`MYOGRIP_SELFTEST_ENABLED`) must be `0` in any build that drives servos.
+- Camera `auto` mode / laptop-webcam fallback is a **temporary development aid** (D14). Pilot and evaluation
+  trials use the wrist-mounted XIAO only.
 
 ## Repository map
 
 ```text
-src/cavia/vision/                 Laptop vision: MJPEG receiver, YOLO detection, reticle, regions, tracker
+src/cavia/vision/                 Laptop vision: camera source (XIAO/laptop), YOLO, reticle, regions, tracker
 src/cavia/core/                   Message contracts, grip library, config, event bus
 src/cavia/fsm/                    Python reference FSM (mirror of firmware) + interactive simulator
 src/cavia/emg/                    EMG input sources (keyboard emulator; detector/replay to come)
 tests/                            pytest suite; tests/fsm/vectors.json = shared FSM spec
 src/firmware/npg-lite-controller/ ESP-IDF firmware for NPG Lite (BLE EMG streaming + MyoGrip FSM). GPL-3.0
+src/firmware/xiao-camera/         XIAO ESP32-S3 Sense camera sensor profile (OV2640)
 data/emg/                         Recorded EMG sessions (CSV)
 assets/figures/                   Approved figures (FSM diagram, EMG characterization)
 docs/                             Architecture, interfaces, decisions, plan
@@ -56,13 +59,13 @@ docs/                             Architecture, interfaces, decisions, plan
 ```bash
 # Laptop runtime (from repo root)
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]"                              # core + tests; add ",vision" for camera/YOLO
 pytest                                               # contracts, FSM vectors, arbitration
 python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM + keyboard EMG, no hardware
 
-# Vision (laptop)
-pip install -r src/cavia/vision/requirements.txt
-CAVIA_CAMERA_IP=<xiao-ip> python src/cavia/vision/objdet.py
+# Vision (laptop) — settings in src/cavia/vision/.env (copy from .env.example)
+pip install -r src/cavia/vision/requirements.txt     # pinned vision environment
+cd src/cavia/vision && python objdet.py              # keys: L laptop / X XIAO / A auto / Q quit
 
 # Firmware (ESP-IDF, from src/firmware/npg-lite-controller)
 idf.py set-target esp32c6 && idf.py build && idf.py flash monitor -p <port>
@@ -77,7 +80,11 @@ python record-log.py --outfile session.csv --duration 5
 - All cross-module messages follow `docs/interfaces.md`. Change the doc in the same commit as the code.
 - FSM behaviour is pinned by `tests/fsm/vectors.json`, shared by the Python FSM and `myogrip_fsm.c`.
   Change a behaviour by changing the vectors first, then both implementations.
-- Thresholds and weights live in config, never hard-coded in logic.
+- Thresholds and weights live in config, never hard-coded in logic. Machine-specific settings
+  (camera IP, ports) go in a gitignored `.env`; commit only `.env.example`.
+- New runtime dependencies go in `pyproject.toml` (the right optional group) as well as any pinned
+  `requirements.txt`.
+- Pull with rebase (`git config pull.rebase true`) to keep history linear.
 - Every runtime event that matters for evaluation is logged (JSONL), so metrics can be recomputed from logs.
 - When a design choice is made, append it to `docs/decisions.md`.
 - Tag uncertain statements as **CONFIRMED / ASSUMPTION / OPEN QUESTION / FUTURE OPTION**.

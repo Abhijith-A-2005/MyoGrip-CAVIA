@@ -38,7 +38,10 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Update `myogrip_fsm.c` to pass the shared vectors (dynamic menu, `grip_progress` + tick, HE controlled opening, fully-open → FULL, selftest off by default) | Abhijith | ☐ |
 | Offline EMG gesture detector prototype on recorded CSVs (Python) | Abhijith | ☐ |
 | Finalize BLE `MENU` / `EV` / `ST` protocol (`docs/interfaces.md` §7) | Abhijith | ☐ |
-| Refactor `objdet.py` into an importable `VisionPipeline` publishing `VisionResult` | Diya | ☐ |
+| XIAO streaming integration + camera source with laptop-webcam fallback (`camera_source.py`, `.env`) | Abhijith | ☑ |
+| XIAO camera sensor profile (`src/firmware/xiao-camera/xiao_camera_profile.h`) | Abhijith | ☑ |
+| Commit full XIAO camera sketch + board settings README (Wi-Fi credentials in a gitignored secrets file) | Abhijith | ☐ |
+| Refactor `objdet.py` into an importable `VisionPipeline` publishing `VisionResult` (pull first: builds on `camera_source.py`) | Diya | ☐ |
 | Decide object set (Q2); collect test images/clips per object & region | Meghna | ☐ |
 | Candidate table + preference store + menu policy v1 with unit tests | Adwaith | ☐ |
 | Dashboard skeleton: FastAPI, WebSocket, MJPEG, static page | Meghna | ☐ |
@@ -54,6 +57,7 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Dashboard: all panels + experimenter controls (user, condition, trial start/end, outcome) | Meghna, Adwaith | ☐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |
+| Remove camera `auto` / laptop fallback or pin `CAMERA_MODE=xiao` before pilot (D14) | Abhijith, Diya | ☐ |
 
 ## Week 3–5 tasks
 

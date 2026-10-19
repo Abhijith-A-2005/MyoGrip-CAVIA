@@ -59,14 +59,19 @@ MyoGrip-CAVIA/
 ├── data/emg/test-1/                   # EMG characterization data
 ├── docs/                              # Architecture, interfaces, decisions, team plan
 ├── src/
-│   ├── cavia/
-│   │   ├── README.md
-│   │   └── vision/                    # Laptop-side vision pipeline
+│   ├── cavia/                         # Laptop runtime (Python package)
+│   │   ├── core/                      # Message contracts, grip library, config, event bus
+│   │   ├── emg/                       # EMG input sources (keyboard emulator)
+│   │   ├── fsm/                       # Reference FSM + keyboard simulator
+│   │   └── vision/                    # Camera source, detection, regions, tracker
 │   └── firmware/
-│       └── npg-lite-controller/       # ESP32-C6 firmware
+│       ├── npg-lite-controller/       # ESP32-C6 EMG + FSM firmware
+│       └── xiao-camera/               # XIAO ESP32-S3 camera profile
+├── tests/                             # pytest suite (shared FSM vectors)
 ├── .gitattributes
 ├── .gitignore
 ├── CLAUDE.md
+├── pyproject.toml
 └── README.md
 ```
 
