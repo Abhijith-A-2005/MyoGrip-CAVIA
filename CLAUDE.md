@@ -1,4 +1,4 @@
-# CLAUDE.md — MyoGrip CAVIA
+# CLAUDE.md: MyoGrip CAVIA
 
 Guidance for AI coding assistants working in this repository.
 
@@ -9,7 +9,7 @@ MyoGrip CAVIA is a B.Tech assistive-engineering research prototype (not a medica
 (XIAO ESP32-S3 Sense, OV2640) streaming to a laptop. **CAVIA** (Context-Aware Visual Intent Arbitration)
 detects an object, estimates the functional region under a fixed centre reticle, ranks mechanically
 valid grips by per-user preference history, and sizes the menu by confidence. The user always navigates
-and confirms with EMG — **the system never executes a grip automatically.**
+and confirms with EMG. **The system never executes a grip automatically.**
 
 Research question: *Can preference-ranked, confidence-adaptive functional-region grip menus reduce EMG
 command burden and selection time without increasing incorrect choices or reducing perceived control?*
@@ -20,7 +20,7 @@ command burden and selection time without increasing incorrect choices or reduci
 |---|---|
 | `docs/architecture.md` | System architecture, data flow, CAVIA algorithm |
 | `docs/interfaces.md` | Message contracts between vision, CAVIA, FSM, dashboard, logger, firmware |
-| `docs/decisions.md` | Decision log — **latest entry wins** over any older doc |
+| `docs/decisions.md` | Decision log. The **latest entry wins** over any older doc |
 | `docs/team-plan.md` | Ownership, weekly milestones, status |
 | `MyoGrip_CAVIA_Complete_AI_Context.md` | Full design context (gitignored; local only, may be absent) |
 
@@ -67,7 +67,7 @@ python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM window + keyboard EMG
 #   W up (SE) · S down (SF) · A confirm (LF) · D full menu (LE) · E back (HE)
 #   actuation: hold A = close · hold D = open · release = hold · M reload menu · Q quit
 
-# Vision (laptop) — settings in src/cavia/vision/.env (copy from .env.example)
+# Vision (laptop): settings in src/cavia/vision/.env (copy from .env.example)
 pip install -r src/cavia/vision/requirements.txt     # pinned vision environment
 cd src/cavia/vision && python objdet.py              # keys: L laptop / X XIAO / A auto / Q quit
 
@@ -91,6 +91,8 @@ python record-log.py --outfile session.csv --duration 5
 - Pull with rebase (`git config pull.rebase true`) to keep history linear.
 - Every runtime event that matters for evaluation is logged (JSONL), so metrics can be recomputed from logs.
 - When a design choice is made, append it to `docs/decisions.md`.
+- **Never use em dashes** (the long dash, U+2014) in any text: docs, code comments, UI copy, commit messages, chat replies.
+  Use a colon, comma, full stop or parentheses instead. En dashes in number ranges (1–5) are fine.
 - Tag uncertain statements as **CONFIRMED / ASSUMPTION / OPEN QUESTION / FUTURE OPTION**.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>): <summary>`,
   short imperative one-liner, lowercase summary, no trailing period, no body or trailers.
