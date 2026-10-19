@@ -1,5 +1,6 @@
 /* 1920x1080 stage: header 72 + two 416px rows + ribbon 88, 16px gaps, 20/24px padding. */
 .live {
+  position: relative;
   display: grid;
   grid-template-rows: 72px 1fr 1fr 88px;
   gap: var(--s-4);
@@ -7,21 +8,11 @@
   padding: 20px var(--s-5);
 }
 
-.live-header {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 0 var(--s-2);
-}
-
-.wordmark {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 30px;
-  letter-spacing: 0.14em;
-  color: var(--ivory);
-  text-shadow: 0 0 24px rgb(3 230 3 / 0.35);
-  white-space: nowrap;
+.live-top,
+.live-menus,
+.live-ribbon {
+  position: relative;
+  z-index: 2;
 }
 
 .live-top {
@@ -45,8 +36,17 @@
   flex: 42 1 0;
 }
 
+/* Focus on the Full Menu swaps the proportions; the panel transition animates flex-grow. */
+.live[data-focus="full"] .menu-adaptive {
+  flex-grow: 44;
+}
+
+.live[data-focus="full"] .menu-full {
+  flex-grow: 56;
+}
+
+/* The ribbon is a hairline timeline, not a card. */
 .live-ribbon {
-  border-radius: var(--r-panel);
-  background: var(--panel);
-  box-shadow: var(--panel-edge);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgb(4 93 3 / 0.9) 12%, rgb(4 93 3 / 0.9) 88%, transparent) 1;
 }

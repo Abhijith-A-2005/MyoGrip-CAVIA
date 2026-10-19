@@ -1,0 +1,31 @@
+/* Blended over the panels (screen), so the focused panel itself is lit, not the space behind it. */
+.focus-light {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* Each gradient reaches zero inside its own box, so the light never shows an edge. */
+.focus-halo,
+.focus-fall {
+  position: absolute;
+  transition:
+    left var(--dur-focus) var(--ease-focus),
+    width var(--dur-focus) var(--ease-focus),
+    top var(--dur-focus) var(--ease-focus),
+    height var(--dur-focus) var(--ease-focus);
+}
+
+/* Straddles the panel's top edge: the bright line where the light lands. */
+.focus-halo {
+  background:
+    radial-gradient(34% 22% at 50% 50%, rgb(140 245 154 / 0.3) 0%, rgb(140 245 154 / 0) 100%),
+    radial-gradient(50% 50% at 50% 50%, rgb(3 230 3 / 0.16) 0%, rgb(3 230 3 / 0) 100%);
+}
+
+/* Falls from the top edge into the panel and fades well before the floor. */
+.focus-fall {
+  background: radial-gradient(50% 72% at 50% 0%, rgb(3 230 3 / 0.17) 0%, rgb(3 230 3 / 0.06) 48%, rgb(3 230 3 / 0) 100%);
+}

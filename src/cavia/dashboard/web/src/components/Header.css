@@ -1,0 +1,118 @@
+.hdr {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 var(--s-2);
+}
+
+.hdr-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  color: var(--ivory);
+  text-shadow:
+    0 0 18px rgb(3 230 3 / 0.45),
+    0 0 2px rgb(238 246 238 / 0.6);
+  white-space: nowrap;
+}
+
+.hdr-tagline {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--sage);
+}
+
+/* Session sits on its own hairline, like a caption under the light. */
+.hdr-session {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 28px 8px;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgb(140 245 154 / 0.5), transparent) 1;
+}
+
+.hdr-condition {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  color: var(--mint);
+}
+
+.hdr-meta {
+  display: flex;
+  gap: 22px;
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+.hdr-meta b {
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.hdr-status {
+  display: flex;
+  justify-content: flex-end;
+  gap: 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--moss);
+}
+
+.status[data-tone="good"] .status-dot {
+  background: var(--glow);
+  box-shadow: 0 0 10px var(--glow);
+}
+
+.status[data-tone="warn"] {
+  color: var(--gold);
+}
+
+.status[data-tone="warn"] .status-dot {
+  background: var(--gold);
+  box-shadow: 0 0 10px rgb(232 194 90 / 0.8);
+}
+
+.status[data-tone="bad"] {
+  color: var(--ember);
+}
+
+.status[data-tone="bad"] .status-dot {
+  background: var(--ember);
+  box-shadow: 0 0 10px rgb(255 107 94 / 0.8);
+  animation: status-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes status-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
