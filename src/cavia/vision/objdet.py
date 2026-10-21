@@ -6,7 +6,7 @@ import numpy as np
 from camera_source import CameraSettings, CameraSource
 from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
 from regions import get_targeted_region
-from cavia.runtime.vision_link import publish_result
+from cavia.runtime.vision_link import DetectionControl, publish_result
 
 # Camera window title
 WINDOW = "CAVIA - Object Detection"
@@ -95,12 +95,12 @@ def reticle_overlaps_box(reticle_point, box):
 tracker = RegionTracker()
 last_sent = None
 
-def emit(out):
+def emit(out, generation=0):
     """Forward every tracker output; keep console printing on changes only."""
     global last_sent
 
-    # Must be outside the print-on-change condition: unchanged locks are heartbeats.
-    publish_result(out)
+    # Unchanged locks must still be forwarded as heartbeats.
+    publish_result(out, generation=generation)
 
     key = (
         out["state"],
@@ -108,6 +108,7 @@ def emit(out):
         out["region"],
         round(out["region_confidence"], 1),
     )
+
     if key != last_sent:
         print(json.dumps(out))
         last_sent = key
@@ -135,19 +136,61 @@ def camera_status_frame(message):
 
 
 stream = CameraSource(camera_settings).start()
+detection_control = DetectionControl()
+
+last_control_generation = -1
 last_sequence = -1
 last_session = None
+
 try:
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
+
     while True:
+        paused, generation = detection_control.snapshot()
+
+        if generation != last_control_generation:
+            # HOME must not reuse a lock from the previous detection cycle.
+            tracker.reset()
+            last_sent = None
+            last_sequence = -1
+            last_session = None
+            last_control_generation = generation
+
         snapshot = stream.snapshot()
         frame = snapshot["frame"]
         stale = time.monotonic() - snapshot["received_at"] > MAX_FRAME_AGE
 
+        if paused:
+            # Keep preview responsive while skipping inference and region work.
+            display_frame = (
+                frame.copy()
+                if frame is not None and not stale
+                else camera_status_frame(
+                    "Camera unavailable; detection paused"
+                )
+            )
+
+            cv2.putText(
+                display_frame,
+                "DETECTION PAUSED - return to HOME to resume",
+                (10, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 220, 255),
+                2,
+            )
+
+            cv2.imshow(WINDOW, display_frame)
+
+            if quit_requested():
+                break
+
+            continue
+
         if frame is None or stale:
             # A camera outage must not carry a previous lock into recovery.
             tracker.reset()
-            emit(tracker.out)
+            emit(tracker.out, generation)
             message = f"{snapshot['source']} / {stream.mode}: {snapshot['status']}"
             cv2.imshow(WINDOW, camera_status_frame(message))
             if quit_requested():
@@ -157,7 +200,7 @@ try:
         # Never carry a lock/history from one camera (or camera session) to another.
         if snapshot["session"] != last_session:
             tracker.reset()
-            emit(tracker.out)
+            emit(tracker.out, generation)
             last_session = snapshot["session"]
             last_sequence = -1
             print(f"[CAMERA] Active: {snapshot['source']}", flush=True)
@@ -173,7 +216,14 @@ try:
         display_frame = frame.copy()
         reticle_point = draw_reticle(display_frame)
 
+        if detection_control.snapshot() != (False, generation):
+            continue
+
         results = model(frame, verbose=False)[0]
+
+        # Discard work if PAUSE or HOME arrived during inference.
+        if detection_control.snapshot() != (False, generation):
+            continue
 
         candidate = None      # reset every frame
         best_area = None
@@ -223,7 +273,7 @@ try:
                 or current["session"] != snapshot["session"]
                 or time.monotonic() - snapshot["received_at"] > MAX_FRAME_AGE):
             tracker.reset()
-            emit(tracker.out)
+            emit(tracker.out, generation)
             display_frame = camera_status_frame("STALE / DISCONNECTED")
             cv2.imshow(WINDOW, display_frame)
             if quit_requested():
@@ -231,8 +281,11 @@ try:
             continue
 
         # once per fresh camera frame, AFTER the box loop
+        if detection_control.snapshot() != (False, generation):
+            continue
+
         out = tracker.update(candidate)
-        emit(out)
+        emit(out, generation)
 
         color = STATE_COLORS[out["state"]]
         cv2.putText(display_frame, out["state"], (10, 25),
