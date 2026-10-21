@@ -6,6 +6,7 @@ import numpy as np
 from camera_source import CameraSettings, CameraSource
 from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
 from regions import get_targeted_region
+from cavia.runtime.vision_link import publish_result
 
 model = YOLO("yolo26n.pt")    # pretrained on COCO
 
@@ -84,16 +85,21 @@ tracker = RegionTracker()
 last_sent = None
 
 def emit(out):
-    """handoff to the ranking layer. prints on change only; swap for a socket/queue later."""
+    """Forward every tracker output; keep console printing on changes only."""
     global last_sent
-    key = (out["state"], out["object"], out["region"], round(out["region_confidence"], 1))
+
+    # Must be outside the print-on-change condition: unchanged locks are heartbeats.
+    publish_result(out)
+
+    key = (
+        out["state"],
+        out["object"],
+        out["region"],
+        round(out["region_confidence"], 1),
+    )
     if key != last_sent:
         print(json.dumps(out))
         last_sent = key
-STATE_COLORS = {NO_OBJECT: (128, 128, 128), SEARCHING: (0, 165, 255),
-                LOCKED: (0, 255, 0), LOST: (0, 0, 255)}
-
-WINDOW = "CAVIA - Object Detection"
 
 
 def quit_requested():
