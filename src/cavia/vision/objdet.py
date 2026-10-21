@@ -8,6 +8,17 @@ from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
 from regions import get_targeted_region
 from cavia.runtime.vision_link import publish_result
 
+# Camera window title
+WINDOW = "CAVIA - Object Detection"
+
+# Display colour for each tracking state (OpenCV uses BGR)
+STATE_COLORS = {
+    NO_OBJECT: (128, 128, 128),
+    SEARCHING: (0, 165, 255),
+    LOCKED: (0, 255, 0),
+    LOST: (0, 0, 255),
+}
+
 model = YOLO("yolo26n.pt")    # pretrained on COCO
 
 # controlled object set, mapped to COCO class names
