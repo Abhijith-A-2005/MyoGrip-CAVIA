@@ -1,4 +1,4 @@
-"""Launch unchanged vision processing and the live arbitration keyboard simulator."""
+"""Launch live vision and the arbitration simulator, with detection paused during a grip."""
 
 from __future__ import annotations
 
@@ -45,8 +45,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--user", default="1")
     parser.add_argument("--db", default="data/arbitration/demo.sqlite3")
-    parser.add_argument("--result-timeout", type=float, default=2.0,
-                        help="Seconds without fresh tracker output before clearing an unconfirmed menu")
+    parser.add_argument(
+        "--result-timeout",
+        type=float,
+        default=2.0,
+        help="Seconds without tracker output before marking the retained menu stale",
+    )
     parser.add_argument("--log-dir", type=Path, default=Path("data/arbitration/sessions"))
     args = parser.parse_args(argv)
     try:
@@ -66,9 +70,15 @@ def main(argv=None):
                 user=app.user, condition="C3_ADAPTIVE", trial=None, type=event, data=data,
             )) + "\n")
 
-        app = LiveSimApp(ArbitrationEngine(store), args.user,
-                         result_timeout=args.result_timeout, audit=audit)
         vision = VisionProcess(script)
+
+        app = LiveSimApp(
+            ArbitrationEngine(store),
+            args.user,
+            result_timeout=args.result_timeout,
+            audit=audit,
+            detection_control=vision.set_paused,
+        )
         pygame.init()
         pygame.key.set_repeat()
         try:
@@ -96,6 +106,12 @@ def main(argv=None):
                 if app.quit:
                     break
                 app.step(clock.tick(60) / 1000.0)
+
+                if vision.control_error:
+                    app.vision_status = (
+                        "Vision control failed; context retained. Restart CAVIA."
+                    )
+
                 draw_live(app, screen, fonts)
                 pygame.display.flip()
                 app.mark_rendered()
