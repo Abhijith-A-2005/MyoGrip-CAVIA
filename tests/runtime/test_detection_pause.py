@@ -317,6 +317,7 @@ def test_actual_objdet_loop_skips_inference_while_paused_and_rejects_old_work(
         WND_PROP_VISIBLE=0,
         FONT_HERSHEY_SIMPLEX=0,
         namedWindow=noop,
+        resizeWindow=noop,
         line=noop,
         putText=noop,
         imshow=noop,
