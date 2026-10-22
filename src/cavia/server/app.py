@@ -9,14 +9,18 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .frames import FrameReceiver
 from .hub import Hub
 
 log = logging.getLogger(__name__)
 
 GESTURE_KEYS = frozenset("wasde")
+BOUNDARY = "frame"
+STREAM_IDLE_S = 5.0     # end the stream if no new frame arrives for this long
+STREAM_POLL_S = 0.015
 
 KeyHandler = Callable[[str, bool], None]
 ControlHandler = Callable[[dict], None]
@@ -42,13 +46,23 @@ def create_app(
     dist: Path | None = None,
     on_key: KeyHandler | None = None,
     on_control: ControlHandler | None = None,
+    frames: FrameReceiver | None = None,
+    on_shutdown: Callable[[], None] | None = None,
 ) -> FastAPI:
-    """`on_key` and `on_control` run on the server thread; keep them short and thread-safe."""
+    """`on_key` and `on_control` run on the server thread; keep them short and thread-safe.
+
+    `on_shutdown` runs in the app's shutdown phase. Uvicorn re-raises SIGTERM/SIGINT only after
+    that phase, so this is the one place cleanup (e.g. stopping the vision process) always runs.
+    """
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         hub.bind(asyncio.get_running_loop())
-        yield
+        try:
+            yield
+        finally:
+            if on_shutdown is not None:
+                on_shutdown()
 
     app = FastAPI(title="MyoGrip CAVIA", lifespan=lifespan, docs_url=None, redoc_url=None)
 
@@ -56,10 +70,15 @@ def create_app(
     def health() -> dict:
         return {"ok": True, "clients": hub.client_count}
 
-    @app.get("/video")
-    def video() -> JSONResponse:
-        # Replaced by the MJPEG stream once a camera source is wired in.
-        return JSONResponse({"detail": "No camera source connected"}, status_code=503)
+    @app.get("/video", response_model=None)
+    def video() -> JSONResponse | StreamingResponse:
+        if frames is None or frames.latest() is None:
+            return JSONResponse({"detail": "No camera frames yet"}, status_code=503)
+        return StreamingResponse(
+            mjpeg(frames),
+            media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.websocket("/ws")
     async def ws(socket: WebSocket) -> None:
@@ -105,3 +124,23 @@ def create_app(
 async def _pump(socket: WebSocket, queue: asyncio.Queue) -> None:
     while True:
         await socket.send_json(await queue.get())
+
+
+def mjpeg_part(jpeg: bytes) -> bytes:
+    head = f"--{BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(jpeg)}\r\n\r\n"
+    return head.encode() + jpeg + b"\r\n"
+
+
+async def mjpeg(frames: FrameReceiver, idle_s: float | None = None):
+    """Each new frame once, as an MJPEG part. Ends if frames stop, so a frozen picture never lingers."""
+    idle_s = STREAM_IDLE_S if idle_s is None else idle_s
+    last_seq, last_new = -1, asyncio.get_running_loop().time()
+    while True:
+        frame = frames.latest()
+        now = asyncio.get_running_loop().time()
+        if frame is not None and frame.seq != last_seq:
+            last_seq, last_new = frame.seq, now
+            yield mjpeg_part(frame.jpeg)
+        elif now - last_new > idle_s:
+            return
+        await asyncio.sleep(STREAM_POLL_S)
