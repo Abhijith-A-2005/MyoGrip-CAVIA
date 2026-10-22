@@ -42,4 +42,4 @@ DASHBOARD_BRIEF.md
 
 # Dashboard frontend
 **/node_modules/
-src/cavia/dashboard/web/dist/
+src/dashboard/web/dist/

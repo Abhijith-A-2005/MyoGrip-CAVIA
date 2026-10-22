@@ -9,7 +9,7 @@ The only things it sends back are keyboard EMG keys and experimenter controls.
 ## Run
 
 ```bash
-cd src/cavia/dashboard/web
+cd src/dashboard/web
 npm install          # first time only
 npm run dev          # http://localhost:5173 (mock mode by default)
 ```
@@ -87,4 +87,4 @@ web/public/       favicon, mock camera frames
 ## Data contract
 
 `ws://<host>:8000/ws` and `http://<host>:8000/video` (MJPEG). Message shapes are in
-[`docs/interfaces.md`](../../../docs/interfaces.md) section 9 and mirrored in `web/src/types/messages.ts`.
+[`docs/interfaces.md`](../../docs/interfaces.md) section 9 and mirrored in `web/src/types/messages.ts`.

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { MockFsm, FSM_SPEEDS } from "../src/state/mockFsm.ts";
 // Shared FSM spec (also run by pytest against the Python FSM).
-const V = JSON.parse(readFileSync(new URL("../../../../../tests/fsm/vectors.json", import.meta.url), "utf8"));
+const V = JSON.parse(readFileSync(new URL("../../../../tests/fsm/vectors.json", import.meta.url), "utf8"));
 FSM_SPEEDS.close = V.config.close_speed; FSM_SPEEDS.open = V.config.open_speed; FSM_SPEEDS.heReturn = V.config.he_return_speed;
 let fails = 0, steps = 0;
 for (const seq of V.sequences) {

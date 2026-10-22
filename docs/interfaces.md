@@ -196,11 +196,11 @@ grasp_success remains unknown.
 
 ## 9. Dashboard protocol (backend ↔ browser)
 
-Built against the dashboard on `feat/cavia-dashboard` (`src/cavia/dashboard/`). TypeScript mirror:
-`src/cavia/dashboard/web/src/types/messages.ts`.
+Built against the dashboard on `feat/cavia-dashboard` (`src/dashboard/`). TypeScript mirror:
+`src/dashboard/web/src/types/messages.ts`.
 
 Endpoints: `ws://<host>:8000/ws` (state), `http://<host>:8000/video` (MJPEG of the raw camera frame;
-the dashboard draws its own overlays), and the built UI from `src/cavia/dashboard/web/dist/`.
+the dashboard draws its own overlays), and the built UI from `src/dashboard/web/dist/`.
 
 Every server message is `{"type": "<kind>", "data": {...}}`. On connect the server sends one `snapshot`,
 then incremental messages.
