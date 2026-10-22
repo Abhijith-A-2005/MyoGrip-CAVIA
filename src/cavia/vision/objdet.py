@@ -11,6 +11,23 @@ from cavia.runtime.vision_link import DetectionControl, publish_result
 # Camera window title
 WINDOW = "CAVIA - Object Detection"
 
+def vision_window_size():
+    """Return half the primary screen dimensions on Windows."""
+    import sys
+
+    if sys.platform == "win32":
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        screen_width = user32.GetSystemMetrics(0)
+        screen_height = user32.GetSystemMetrics(1)
+
+        if screen_width > 0 and screen_height > 0:
+            return screen_width // 2, screen_height // 2
+
+    # Default for other operating systems.
+    return 960, 540
+
 # Display colour for each tracking state (OpenCV uses BGR)
 STATE_COLORS = {
     NO_OBJECT: (128, 128, 128),
@@ -144,6 +161,10 @@ last_session = None
 
 try:
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
+
+    # Set the initial display size once; manual resizing remains available.
+    window_width, window_height = vision_window_size()
+    cv2.resizeWindow(WINDOW, window_width, window_height)
 
     while True:
         paused, generation = detection_control.snapshot()
