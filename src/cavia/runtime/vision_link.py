@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import socket
+import struct
 import subprocess
 import sys
 import threading
@@ -14,7 +15,13 @@ import time
 
 PORT_ENV = "CAVIA_RESULT_PORT"
 CONTROL_ENV = "CAVIA_CONTROL_STDIN"
+FRAME_PORT_ENV = "CAVIA_FRAME_PORT"
 _publisher: socket.socket | None = None
+
+# Camera frames for the dashboard: [uint32 length][float64 capture time (time.monotonic)][JPEG].
+FRAME_HEADER = struct.Struct("!Id")
+FRAME_MAX_BYTES = 2 * 1024 * 1024
+FRAME_MIN_INTERVAL = 0.05   # at most ~20 frames per second to the dashboard
 
 
 def publish_result(result: dict, *, generation: int = 0) -> None:
@@ -101,6 +108,76 @@ def decode_result(raw: bytes, now: float) -> dict | None:
         return None
 
 
+
+class FrameSender:
+    """Sends the newest camera frame to the dashboard server on a background thread.
+
+    Holds a single slot: a frame waiting to be sent is replaced by a newer one, so a slow or
+    absent server can never delay detection. Reconnects once a second if the server goes away.
+    """
+
+    def __init__(self, port: int, min_interval: float = FRAME_MIN_INTERVAL):
+        self._port = port
+        self._min_interval = min_interval
+        self._cond = threading.Condition()
+        self._slot: tuple[bytes, float] | None = None
+        self._last_offer = -math.inf
+        threading.Thread(target=self._run, name="frame-sender", daemon=True).start()
+
+    def wants_frame(self, now: float) -> bool:
+        return now - self._last_offer >= self._min_interval
+
+    def offer(self, jpeg: bytes, captured_at: float) -> None:
+        if not jpeg or len(jpeg) > FRAME_MAX_BYTES:
+            return
+        with self._cond:
+            self._slot = (jpeg, captured_at)
+            self._last_offer = time.monotonic()
+            self._cond.notify()
+
+    def _run(self) -> None:
+        sock = None
+        while True:
+            with self._cond:
+                while self._slot is None:
+                    self._cond.wait()
+                jpeg, captured_at = self._slot
+                self._slot = None
+            try:
+                if sock is None:
+                    sock = socket.create_connection(("127.0.0.1", self._port), timeout=1.0)
+                sock.sendall(FRAME_HEADER.pack(len(jpeg), captured_at) + jpeg)
+            except OSError:
+                if sock is not None:
+                    sock.close()
+                sock = None
+                time.sleep(1.0)
+
+
+_frame_sender: FrameSender | None = None
+
+
+def frame_wanted(now: float | None = None) -> bool:
+    """True when launched by the dashboard server and a new frame is due (rate limit).
+
+    Lets the detector skip JPEG encoding entirely when nobody is listening.
+    """
+    global _frame_sender
+
+    if _frame_sender is None:
+        port = os.environ.get(FRAME_PORT_ENV)
+        if not port:
+            return False
+        _frame_sender = FrameSender(int(port))
+    return _frame_sender.wants_frame(time.monotonic() if now is None else now)
+
+
+def publish_frame(jpeg: bytes, captured_at: float) -> None:
+    """Hand a JPEG-encoded camera frame to the server. No-op when not launched by it."""
+    if _frame_sender is not None:
+        _frame_sender.offer(jpeg, captured_at)
+
+
 class DetectionControl:
     """Read parent commands without blocking the camera/GUI thread."""
 
@@ -146,8 +223,9 @@ class DetectionControl:
 class VisionProcess:
     """Own the vision child process and receive its newest valid result."""
 
-    def __init__(self, script: Path):
+    def __init__(self, script: Path, extra_env: dict[str, str] | None = None):
         self.script = script.resolve()
+        self.extra_env = dict(extra_env or {})
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("127.0.0.1", 0))
@@ -163,6 +241,7 @@ class VisionProcess:
         env = os.environ.copy()
         env[PORT_ENV] = str(self.sock.getsockname()[1])
         env[CONTROL_ENV] = "1"
+        env.update(self.extra_env)
 
         # Retain the vision directory for .env and YOLO weights.
         self.process = subprocess.Popen(

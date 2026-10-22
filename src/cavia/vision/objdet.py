@@ -6,7 +6,7 @@ import numpy as np
 from camera_source import CameraSettings, CameraSource
 from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
 from regions import get_targeted_region, normalize_rect, region_rect
-from cavia.runtime.vision_link import DetectionControl, publish_result
+from cavia.runtime.vision_link import DetectionControl, frame_wanted, publish_frame, publish_result
 
 # Camera window title
 WINDOW = "CAVIA - Object Detection"
@@ -145,6 +145,22 @@ def emit(out, generation=0, extras=None):
         last_sent = key
 
 
+last_shared = None
+
+
+def share_frame(snapshot):
+    """Send the raw camera frame (no drawings) to the dashboard server, when it launched us."""
+    global last_shared
+
+    frame = snapshot["frame"]
+    if frame is None or snapshot["sequence"] == last_shared or not frame_wanted():
+        return
+    ok, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    if ok:
+        last_shared = snapshot["sequence"]
+        publish_frame(jpeg.tobytes(), snapshot["received_at"])
+
+
 def quit_requested():
     key = cv2.waitKey(10) & 0xFF
     if ord("A") <= key <= ord("Z"):
@@ -195,6 +211,9 @@ try:
         snapshot = stream.snapshot()
         frame = snapshot["frame"]
         stale = time.monotonic() - snapshot["received_at"] > MAX_FRAME_AGE
+        if not stale:
+            # Before the pause check: the dashboard shows the camera during a grip too.
+            share_frame(snapshot)
 
         if paused:
             # Keep preview responsive while skipping inference and region work.
