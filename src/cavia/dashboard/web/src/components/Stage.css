@@ -1,0 +1,17 @@
+.stage-viewport {
+  position: fixed;
+  inset: 0;
+  background: var(--void);
+  overflow: hidden;
+}
+
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  background: var(--bg-page);
+  overflow: hidden;
+}

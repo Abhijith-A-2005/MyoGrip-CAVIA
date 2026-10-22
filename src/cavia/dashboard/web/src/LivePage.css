@@ -1,0 +1,54 @@
+/* 1920x1080 stage: header 72 + two 416px rows + ribbon 88, 16px gaps, 20/24px padding. */
+.live {
+  position: relative;
+  display: grid;
+  grid-template-rows: 72px 1fr 1fr 88px;
+  gap: var(--s-4);
+  height: 100%;
+  padding: 20px var(--s-5);
+}
+
+.live-top,
+.live-menus {
+  position: relative;
+  z-index: 2;
+}
+
+.live-top {
+  display: grid;
+  /* Camera column is sized by the 4:3 feed; Target and Hand share the rest. */
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 28px;
+  min-height: 0;
+}
+
+.live-menus {
+  display: flex;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
+.menu-adaptive {
+  flex: 58 1 0;
+}
+
+.menu-full {
+  flex: 42 1 0;
+}
+
+/* Focus on the Full Menu swaps the proportions; the panel transition animates flex-grow. */
+.live[data-focus="full"] .menu-adaptive {
+  flex-grow: 44;
+}
+
+.live[data-focus="full"] .menu-full {
+  flex-grow: 56;
+}
+
+.menu-reason {
+  max-width: 46ch;
+  padding-top: 2px;
+  font-size: var(--t-small);
+  text-align: right;
+  color: var(--sage);
+}

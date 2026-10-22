@@ -48,6 +48,7 @@ src/cavia/vision/                 Laptop vision: camera source (XIAO/laptop), YO
 src/cavia/core/                   Message contracts, grip library, config, event bus
 src/cavia/fsm/                    Python reference FSM (mirror of firmware) + interactive simulator
 src/cavia/emg/                    EMG input sources (WASDE keyboard emulator; detector/replay to come)
+src/cavia/dashboard/web/          Dashboard UI (React + Vite, mock mode); see src/cavia/dashboard/README.md
 tests/                            pytest suite; tests/fsm/vectors.json = shared FSM spec
 src/firmware/npg-lite-controller/ ESP-IDF firmware for NPG Lite (BLE EMG streaming + MyoGrip FSM). GPL-3.0
 src/firmware/xiao-camera/         XIAO ESP32-S3 Sense camera sensor profile (OV2640)
@@ -67,6 +68,10 @@ python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM window + keyboard EMG
 #   W up (SE) · S down (SF) · A confirm (LF) · D full menu (LE) · E back (HE)
 #   actuation: hold A = close · hold D = open · release = hold · M reload menu · Q quit
 
+# Dashboard (from src/cavia/dashboard/web)
+npm install && npm run dev                           # http://localhost:5173, mock data, WASDE keys, ` drawer
+npm run build && npm run test:fsm                    # build to dist/; mock FSM vs shared vectors
+
 # Vision (laptop): settings in src/cavia/vision/.env (copy from .env.example)
 pip install -r src/cavia/vision/requirements.txt     # pinned vision environment
 cd src/cavia/vision && python objdet.py              # keys: L laptop / X XIAO / A auto / Q quit
@@ -82,7 +87,8 @@ python record-log.py --outfile session.csv --duration 5
 
 - Python 3.11+, type hints, dataclasses for messages. Match surrounding style; keep comments sparse.
 - All cross-module messages follow `docs/interfaces.md`. Change the doc in the same commit as the code.
-- FSM behaviour is pinned by `tests/fsm/vectors.json`, shared by the Python FSM and `myogrip_fsm.c`.
+- FSM behaviour is pinned by `tests/fsm/vectors.json`, shared by the Python FSM, `myogrip_fsm.c` and the
+  dashboard's mock FSM (`npm run test:fsm`).
   Change a behaviour by changing the vectors first, then both implementations.
 - Thresholds and weights live in config, never hard-coded in logic. Machine-specific settings
   (camera IP, ports) go in a gitignored `.env`; commit only `.env.example`.

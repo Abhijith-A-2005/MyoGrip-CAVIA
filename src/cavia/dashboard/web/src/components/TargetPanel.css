@@ -1,0 +1,187 @@
+/* No card: the target reads as typography floating in the light. */
+.target {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px 8px 6px;
+}
+
+.target-caption {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--sage);
+}
+
+.target-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex: 1;
+}
+
+.target-names {
+  min-width: 0;
+}
+
+.target-object {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 58px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--ivory);
+  text-shadow: 0 0 28px rgb(3 230 3 / 0.25);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.target-object[data-empty] {
+  font-family: var(--font-ui);
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--moss);
+  text-shadow: none;
+}
+
+.target-region {
+  margin-top: 10px;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--sage);
+  transition:
+    color 250ms,
+    text-shadow 250ms;
+}
+
+.target[data-locked] .target-region {
+  color: var(--glow);
+  text-shadow: 0 0 18px rgb(3 230 3 / 0.55);
+}
+
+.target-track {
+  margin-top: 12px;
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+/* Confidence ring */
+.ring {
+  position: relative;
+  flex: none;
+  width: 150px;
+  height: 150px;
+  --ring: var(--moss);
+}
+
+.ring[data-tone="mid"] {
+  --ring: var(--emerald);
+}
+
+.ring[data-tone="high"] {
+  --ring: var(--glow);
+}
+
+.ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--deep);
+  stroke-width: 7;
+}
+
+.ring-value {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 220ms linear,
+    stroke 300ms;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ring) 70%, transparent));
+}
+
+.ring-tick {
+  stroke: var(--void);
+  stroke-width: 3;
+}
+
+.ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-pct {
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ivory);
+}
+
+.ring-pct:not([data-empty])::after {
+  content: "%";
+  font-size: 20px;
+  color: var(--sage);
+}
+
+.ring-band {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--ring);
+}
+
+/* Evidence bars */
+.target-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: var(--s-4);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgb(4 93 3 / 0.9), transparent) 1;
+}
+
+.ev {
+  display: grid;
+  grid-template-columns: 96px 1fr 48px;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--t-small);
+}
+
+.ev-label {
+  color: var(--sage);
+}
+
+.ev-track {
+  position: relative;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--deep);
+  overflow: hidden;
+}
+
+.ev-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--emerald), var(--glow));
+  transform-origin: left;
+  transition: transform 220ms linear;
+}
+
+.ev-value {
+  text-align: right;
+  color: var(--ivory);
+}

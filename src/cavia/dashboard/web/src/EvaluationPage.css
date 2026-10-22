@@ -1,0 +1,204 @@
+.eval {
+  position: relative;
+  display: grid;
+  grid-template-rows: 72px 230px 1fr;
+  gap: var(--s-4);
+  height: 100%;
+  padding: 20px var(--s-5);
+}
+
+.eval-hero,
+.eval-grid {
+  position: relative;
+  z-index: 2;
+}
+
+.eval-hero {
+  display: grid;
+  grid-template-columns: 1fr 720px;
+  align-items: center;
+  gap: 80px;
+  padding: 0 var(--s-2);
+}
+
+.eval-title {
+  font-family: var(--font-display);
+  font-size: 84px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--ivory);
+  text-shadow: 0 0 40px rgb(3 230 3 / 0.35);
+}
+
+.eval-lede {
+  max-width: 52ch;
+  margin-top: 18px;
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--sage);
+}
+
+.eval-question {
+  margin: 0;
+  padding: 6px 0 6px 32px;
+  border-left: 2px solid var(--glow);
+  box-shadow: -14px 0 30px -18px rgb(3 230 3 / 0.7);
+}
+
+.eval-question p {
+  font-size: 27px;
+  font-weight: 500;
+  line-height: 1.42;
+  color: var(--ivory);
+}
+
+.eval-question cite {
+  display: block;
+  margin-top: 12px;
+  font-style: normal;
+  font-size: var(--t-small);
+  color: var(--mint);
+}
+
+.eval-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
+/* ---- result tables ---- */
+.rt {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.rt th,
+.rt td {
+  padding: 0;
+  font-weight: inherit;
+  text-align: left;
+}
+
+.rt thead th {
+  padding-bottom: 12px;
+  font-size: 14px;
+  color: var(--sage);
+  white-space: nowrap;
+}
+
+.rt-cond {
+  width: 96px;
+  text-align: center !important;
+}
+
+.rt-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: 1px;
+  background: var(--moss);
+}
+
+.rt-cond[data-cond="C2_STATIC"] .rt-swatch {
+  background: var(--emerald);
+}
+
+.rt-cond[data-cond="C3_ADAPTIVE"] .rt-swatch {
+  background: var(--glow);
+  box-shadow: 0 0 8px var(--glow);
+}
+
+.rt tbody tr {
+  border-top: 1px solid rgb(2 63 3 / 0.7);
+}
+
+.rt tbody th,
+.rt tbody td {
+  padding: 13px 0;
+}
+
+.rt-metric {
+  display: block;
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.rt-how {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--moss);
+}
+
+.rt-cell {
+  text-align: center !important;
+  font-size: 20px;
+  color: var(--forest);
+}
+
+/* ---- ghost figures ---- */
+.ghosts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 20px;
+}
+
+.ghost {
+  margin: 0;
+}
+
+.ghost svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 10px 8px 0;
+  border-radius: 12px;
+  background: rgb(1 3 0 / 0.4);
+  box-shadow: inset 0 0 0 1px rgb(2 63 3 / 0.8);
+}
+
+.ghost-axis {
+  stroke: var(--deep);
+  stroke-width: 1.5;
+}
+
+.ghost-marks {
+  fill: none;
+  stroke: var(--forest);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  stroke-linecap: round;
+}
+
+.ghost figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.ghost-title {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.ghost-wait {
+  font-size: 13px;
+  color: var(--moss);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

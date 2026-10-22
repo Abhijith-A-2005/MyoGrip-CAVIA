@@ -1,0 +1,73 @@
+/* MyoGrip CAVIA design tokens. Colours sampled from the dark green reference poster, top to bottom. */
+
+:root {
+  /* Greens, from the light source down into black */
+  --glow: #03e603;
+  --mint: #8cf59a;
+  --emerald: #029801;
+  --forest: #045d03;
+  --deep: #023f03;
+  --undergrowth: #011603;
+  --void: #010300;
+
+  /* Text */
+  --ivory: #eef6ee;
+  --sage: #9db8a2;
+  --moss: #5e7a63;
+
+  /* Signals */
+  --gold: #e8c25a;
+  --ember: #ff6b5e;
+
+  /* Translucent greens for light and fills */
+  --glow-a08: rgb(3 230 3 / 0.08);
+  --glow-a18: rgb(3 230 3 / 0.18);
+  --glow-a28: rgb(3 230 3 / 0.28);
+  --glow-a45: rgb(3 230 3 / 0.45);
+
+  /* FSM state colours */
+  --state-home: var(--moss);
+  --state-adaptive: var(--glow);
+  --state-full: var(--mint);
+  --state-closing: var(--gold);
+  --state-holding: var(--ivory);
+  --state-opening: var(--emerald);
+
+  /* Surfaces */
+  --bg-page:
+    radial-gradient(120% 60% at 50% -10%, rgb(3 230 3 / 0.2) 0%, rgb(3 230 3 / 0) 60%),
+    linear-gradient(180deg, #012000 0%, #011603 22%, #010600 55%, #010300 100%);
+  --panel: linear-gradient(180deg, rgb(4 93 3 / 0.16) 0%, rgb(1 22 3 / 0.82) 100%);
+  --panel-edge: 0 0 0 1px var(--deep);
+  --panel-edge-focus: 0 0 0 1px var(--forest), 0 0 36px rgb(3 230 3 / 0.22);
+
+  /* Type */
+  --font-display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --font-ui: "Figtree", system-ui, sans-serif;
+
+  --t-hero: 56px;
+  --t-grip: 40px;
+  --t-grip-sm: 28px;
+  --t-title: 24px;
+  --t-body: 18px;
+  --t-small: 15px;
+
+  /* Shape and space (4px base) */
+  --r-panel: 20px;
+  --r-row: 14px;
+  --r-frame: 16px;
+  --r-pill: 999px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+
+  /* Motion */
+  --ease-focus: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-focus: 450ms;
+  --dur-select: 160ms;
+  --dur-seal: 300ms;
+}

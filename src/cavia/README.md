@@ -8,7 +8,8 @@ Laptop-side software for MyoGrip CAVIA (Context-Aware Visual Intent Arbitration)
 | `fsm/` | ✅ | Python reference FSM (mirror of the firmware FSM) + simulator window |
 | `emg/` | ◐ | WASDE keyboard EMG emulator (gesture detector and CSV replay to come) |
 | `vision/` | ◐ | Camera source, YOLO detection, reticle, regions, tracker (standalone script; packaging pending) |
-| `arbitration/`, `runtime/`, `dashboard/`, `eval/` | ☐ | Planned — see [`docs/architecture.md`](../../docs/architecture.md) |
+| `dashboard/` | ◐ | Web UI with mock mode ([`dashboard/README.md`](dashboard/README.md)); FastAPI backend pending |
+| `arbitration/`, `runtime/`, `eval/` | ☐ | Planned, see [`docs/architecture.md`](../../docs/architecture.md) |
 
 ## Setup
 
@@ -39,12 +40,12 @@ Opens a window showing the vertical menu, FSM state, grip progress bar, held key
 
 | Key | Menu mode | Actuation mode |
 |---|---|---|
-| `W` | SE — move up | — |
-| `S` | SF — move down | — |
-| `A` | LF — confirm selected grip (keep holding to start closing) | **hold** = flexor active → close; release → hold |
-| `D` | LE — open Full Menu | **hold** = extensor active → open; stops at fully open (grip stays active) |
-| `E` | HE — back to CAVIA Home | HE — the only way out of a grip: controlled opening, then Full Menu |
-| `M` | reload mock menu (HOME only) | — |
+| `W` | SE: move up | (none) |
+| `S` | SF: move down | (none) |
+| `A` | LF: confirm selected grip (keep holding to start closing) | **hold** = flexor active → close; release → hold |
+| `D` | LE: open Full Menu | **hold** = extensor active → open; stops at fully open (grip stays active) |
+| `E` | HE: back to CAVIA Home | HE: the only way out of a grip: controlled opening, then Full Menu |
+| `M` | reload mock menu (HOME only) | (none) |
 | `Q` / `Esc` | quit | quit |
 
 Rules mirroring real EMG:
@@ -70,7 +71,7 @@ cp src/cavia/vision/.env.example src/cavia/vision/.env
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `CAVIA_CAMERA_IP` | — | XIAO IP or hostname only (no `http://`, no port). Required unless `CAMERA_MODE=laptop` |
+| `CAVIA_CAMERA_IP` | (none) | XIAO IP or hostname only (no `http://`, no port). Required unless `CAMERA_MODE=laptop` |
 | `CAVIA_CAMERA_PORT` | `81` | XIAO MJPEG port (stream path is `/stream`) |
 | `CAMERA_MODE` | `auto` | `auto`, `xiao` or `laptop` |
 | `LAPTOP_CAMERA_INDEX` | `0` | OpenCV index of the laptop webcam |

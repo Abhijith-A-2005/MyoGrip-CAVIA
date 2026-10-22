@@ -1,0 +1,396 @@
+/* ---- shared ------------------------------------------------------------ */
+
+.menu-list-wrap {
+  position: relative;
+  height: 100%;
+}
+
+.mlist {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The highlight: one element that slides to the selected row. */
+.mhl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  border-radius: var(--r-row);
+  opacity: 0;
+  background: linear-gradient(90deg, rgb(3 230 3 / 0.17) 0%, rgb(3 230 3 / 0.06) 55%, rgb(3 230 3 / 0.02) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(140 245 154 / 0.38),
+    0 0 34px rgb(3 230 3 / 0.16);
+  transition:
+    top var(--dur-select) var(--ease-focus),
+    height var(--dur-select) var(--ease-focus),
+    opacity 200ms;
+}
+
+.mhl[data-visible] {
+  opacity: 1;
+}
+
+/* Left edge: the bar of light marking the choice. */
+.mhl::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--glow);
+  box-shadow: 0 0 14px var(--glow);
+}
+
+.mhl[data-sealed] {
+  background: linear-gradient(90deg, rgb(140 245 154 / 0.2) 0%, rgb(3 230 3 / 0.08) 60%, rgb(3 230 3 / 0.03) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(140 245 154 / 0.7),
+    0 0 44px rgb(3 230 3 / 0.25);
+  animation: seal var(--dur-seal) var(--ease-focus);
+}
+
+@keyframes seal {
+  40% {
+    box-shadow:
+      inset 0 0 0 2px var(--mint),
+      0 0 70px rgb(3 230 3 / 0.6);
+  }
+}
+
+.mrow-moves {
+  text-align: right;
+  font-size: var(--t-small);
+  color: var(--sage);
+  white-space: nowrap;
+}
+
+.mrow-moves[data-ready] {
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.mrow-lock {
+  display: inline-block;
+  vertical-align: -5px;
+  margin-right: 4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.grip-glyph .g-obj {
+  fill: currentColor;
+  fill-opacity: 0.3;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-opacity: 0.6;
+}
+
+.grip-glyph .g-finger {
+  stroke-width: 5;
+}
+
+.menu-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 100%;
+  padding-bottom: 20px;
+  color: var(--moss);
+  text-align: center;
+}
+
+.menu-empty svg {
+  fill: none;
+  stroke: var(--forest);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.menu-empty svg circle {
+  fill: var(--forest);
+  stroke: none;
+}
+
+.menu-empty p {
+  max-width: 34ch;
+  font-size: var(--t-body);
+}
+
+/* ---- adaptive rows ------------------------------------------------------- */
+
+.mrow {
+  display: grid;
+  grid-template-columns: 56px 60px minmax(0, 1fr) 230px 92px;
+  align-items: center;
+  gap: 18px;
+  flex: 1 1 0;
+  max-height: 148px;
+  min-height: 0;
+  padding: 0 22px 0 14px;
+  transition: opacity var(--dur-focus) var(--ease-focus);
+}
+
+.mrow[data-muted] {
+  opacity: 0.35;
+}
+
+.mrow-rank {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--moss);
+  transition: color var(--dur-select);
+}
+
+.mrow-glyph {
+  color: var(--sage);
+  transition: color var(--dur-select);
+}
+
+.mrow-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mrow-name {
+  font-family: var(--font-display);
+  font-size: var(--t-grip);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0.08em;
+  color: var(--ivory);
+  white-space: nowrap;
+  transition:
+    font-size var(--dur-select) var(--ease-focus),
+    color var(--dur-select),
+    text-shadow var(--dur-select);
+}
+
+.mrow-hint {
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+.mrow[data-selected] .mrow-rank,
+.mrow[data-selected] .mrow-glyph {
+  color: var(--glow);
+}
+
+.mrow[data-selected] .mrow-name {
+  font-size: var(--t-hero);
+  color: #fff;
+  text-shadow: 0 0 26px rgb(3 230 3 / 0.55);
+}
+
+.mrow[data-sealed] .mrow-hint {
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.mrow-share {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mrow-share-track {
+  position: relative;
+  flex: 1;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--deep);
+  overflow: hidden;
+}
+
+.mrow-share-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--emerald), var(--glow));
+  transform-origin: left;
+}
+
+.mrow-share-pct {
+  width: 48px;
+  text-align: right;
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.mrow-share-note {
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+/* Four rows (cold start, every compatible grip) need tighter type. */
+.mlist[data-count="3"] .mrow-name,
+.mlist[data-count="4"] .mrow-name {
+  font-size: 32px;
+}
+
+.mlist[data-count="3"] .mrow[data-selected] .mrow-name,
+.mlist[data-count="4"] .mrow[data-selected] .mrow-name {
+  font-size: 40px;
+}
+
+/* ---- one-confirm card ---------------------------------------------------- */
+
+.one {
+  position: relative;
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  height: 100%;
+  max-height: 240px;
+  margin-top: 6px;
+  padding: 0 36px 0 24px;
+  border-radius: var(--r-row);
+  background: linear-gradient(90deg, rgb(3 230 3 / 0.17) 0%, rgb(3 230 3 / 0.06) 55%, rgb(3 230 3 / 0.02) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(140 245 154 / 0.4),
+    0 0 50px rgb(3 230 3 / 0.18);
+}
+
+.one::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--glow);
+  box-shadow: 0 0 14px var(--glow);
+}
+
+.one[data-sealed] {
+  box-shadow:
+    inset 0 0 0 1px rgb(140 245 154 / 0.75),
+    0 0 60px rgb(3 230 3 / 0.28);
+  animation: seal var(--dur-seal) var(--ease-focus);
+}
+
+.one-glyph {
+  justify-self: center;
+  color: var(--glow);
+  filter: drop-shadow(0 0 12px rgb(3 230 3 / 0.5));
+}
+
+.one-name {
+  font-family: var(--font-display);
+  font-size: 72px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-shadow: 0 0 30px rgb(3 230 3 / 0.55);
+}
+
+.one-hint {
+  margin-top: 10px;
+  font-size: var(--t-body);
+  color: var(--mint);
+}
+
+.one-share {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 190px;
+  text-align: right;
+}
+
+.one-share-pct {
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ivory);
+}
+
+.one-share-label {
+  margin-top: 6px;
+  font-size: var(--t-small);
+  color: var(--sage);
+}
+
+/* ---- full menu rows ------------------------------------------------------ */
+
+.mlist-full {
+  gap: 6px;
+}
+
+.frow {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto 84px;
+  align-items: center;
+  gap: 16px;
+  flex: 1 1 0;
+  max-height: 76px;
+  min-height: 0;
+  padding: 0 20px 0 16px;
+  transition: opacity var(--dur-focus) var(--ease-focus);
+}
+
+.frow[data-muted] {
+  opacity: 0.35;
+}
+
+.frow-glyph {
+  color: var(--sage);
+  transition: color var(--dur-select);
+}
+
+.frow-name {
+  font-family: var(--font-display);
+  font-size: var(--t-grip-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ivory);
+  transition:
+    color var(--dur-select),
+    text-shadow var(--dur-select);
+}
+
+.frow[data-selected] .frow-glyph {
+  color: var(--glow);
+}
+
+.frow[data-selected] .frow-name {
+  color: #fff;
+  text-shadow: 0 0 22px rgb(3 230 3 / 0.5);
+}
+
+.frow-chip {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  color: var(--mint);
+  box-shadow: inset 0 0 0 1px rgb(140 245 154 / 0.35);
+}
+
+.frow-confirmed {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--mint);
+}
