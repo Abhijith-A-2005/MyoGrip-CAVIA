@@ -144,6 +144,12 @@ a nonblocking localhost UDP socket, adding:
 
 Existing fields remain state, object, region, region_confidence and stable.
 region_confidence maps to ArbitrationInput.vision_confidence.
+
+For the dashboard (§9) each result also carries: `det_conf`, `reticle_score`, `stability` (the parts
+of region_confidence), `source` (`XIAO`/`LAPTOP`), `frame_seq`, and `box` / `region_box`
+(`[x1, y1, x2, y2]` normalised 0..1, or null). The boxes are sent only when the frame's detection
+matches the reported object/region; `region_box` comes from `regions.region_rect`, which mirrors the
+class-specific zone rules. The arbitration runtime ignores these fields.
 A null region maps to unknown.
 
 The receiver rejects malformed, out-of-order, pre-HOME and wrong-generation

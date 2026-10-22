@@ -34,8 +34,20 @@ Options: `--port 8000`, `--host 0.0.0.0` (open from another device on the networ
 `--condition C3_ADAPTIVE`. While developing the UI against the backend, run `npm run dev` and open
 `http://localhost:5173/?live=1` instead (hot reload, same backend).
 
-The backend (`src/cavia/server/`) already serves the session controls from the experimenter drawer;
-camera, vision, menus and the hand are wired in step by step and show as not connected until then.
+Vision on the dashboard:
+
+```bash
+python -m cavia.server --vision live                       # run objdet.py with the camera (needs ".[vision]")
+python -m cavia.server --vision live --record-vision data/vision/recordings/mug.jsonl   # ...and record it
+python -m cavia.server --replay data/vision/recordings/mug.jsonl                         # replay, no camera
+python -m cavia.server --replay data/vision/samples/synthetic-cup-handle.jsonl           # synthetic sample
+```
+
+Recordings hold tracker results only (no images) and replay at their original pace in a loop.
+`data/vision/recordings/` is gitignored; `data/vision/samples/` holds a small synthetic file for testing.
+
+Served today: session controls, vision results and camera/vision health. The camera picture,
+menus and hand are wired in next and show as not connected until then.
 
 ## Mock mode
 
