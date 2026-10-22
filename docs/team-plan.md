@@ -59,7 +59,8 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Compare dashboards A and B, keep one (D20) | Team | ☐ |
 | FastAPI backend serving the dashboard protocol (`docs/interfaces.md` §9): skeleton, hub, session (`cavia.server`) | Adwaith | ☑ |
 | Integration: vision results to the dashboard (live, record, replay) | Adwaith | ☑ |
-| Integration: camera MJPEG, menus/FSM/EMG to the dashboard | Adwaith | ◐ |
+| Integration: camera picture to the dashboard (`/video` MJPEG from vision frames) | Adwaith | ☑ |
+| Integration: menus, FSM and EMG to the dashboard | Adwaith | ◐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |
 | Remove camera `auto` / laptop fallback or pin `CAMERA_MODE=xiao` before pilot (D14) | Abhijith, Diya | ☐ |

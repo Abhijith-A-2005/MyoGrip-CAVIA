@@ -166,6 +166,14 @@ Confidence policy-band changes may also update an unconfirmed menu.
 The current interface identifies object classes, not physical object instances.
 Distinguishing two cups by identity requires a future vision tracking ID.
 
+### Camera frames (dashboard only)
+
+When launched by the dashboard server, vision also gets `CAVIA_FRAME_PORT` and sends the raw camera
+frame (no drawings) over a localhost TCP connection: `[uint32 length][float64 capture time,
+time.monotonic][JPEG]`, at most about 20 fps and at most 2 MB per frame. A single-slot sender keeps
+only the newest frame, so a slow server can never delay detection. Frames keep flowing while detection
+is paused. Without `CAVIA_FRAME_PORT` nothing is encoded or sent. The server serves them at `/video`.
+
 ### Detection control
 
 The launcher sets CAVIA_CONTROL_STDIN=1 and opens the child's stdin as a pipe.
@@ -206,7 +214,9 @@ Server: `src/cavia/server/` (`python -m cavia.server`). Client: `src/dashboard/`
 `src/dashboard/web/src/types/messages.ts`.
 
 Endpoints: `ws://<host>:8000/ws` (state), `http://<host>:8000/video` (MJPEG of the raw camera frame;
-the dashboard draws its own overlays), and the built UI from `src/dashboard/web/dist/`.
+the dashboard draws its own overlays; 503 until the first frame, and the stream ends after 5 s without
+a new frame), and the built UI from `src/dashboard/web/dist/`. `system.camera.fps` and `latency_ms`
+(capture to server) come from the frame stream when it is flowing; `latency_ms` 0 means not measured.
 
 Every server message is `{"type": "<kind>", "data": {...}}`. On connect the server sends one `snapshot`,
 then incremental messages.

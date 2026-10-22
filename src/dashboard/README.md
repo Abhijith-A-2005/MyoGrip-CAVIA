@@ -43,11 +43,16 @@ python -m cavia.server --replay data/vision/recordings/mug.jsonl                
 python -m cavia.server --replay data/vision/samples/synthetic-cup-handle.jsonl           # synthetic sample
 ```
 
-Recordings hold tracker results only (no images) and replay at their original pace in a loop.
+With `--vision live` the camera picture appears in the dashboard's viewfinder (the OpenCV window still
+opens too). `--vision-script PATH` runs another script in place of `objdet.py`, for example a stand-in
+that uses the same `publish_result` / `publish_frame` calls when no camera stack is installed.
+
+Recordings hold tracker results only (no images) and replay at their original pace in a loop, so a
+replay shows the overlays and target panel without a picture.
 `data/vision/recordings/` is gitignored; `data/vision/samples/` holds a small synthetic file for testing.
 
-Served today: session controls, vision results and camera/vision health. The camera picture,
-menus and hand are wired in next and show as not connected until then.
+Served today: session controls, vision results, the camera picture and camera/vision health.
+Menus and the hand are wired in next and show as not connected until then.
 
 ## Mock mode
 
