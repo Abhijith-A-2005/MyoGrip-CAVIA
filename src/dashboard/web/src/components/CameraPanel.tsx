@@ -32,6 +32,8 @@ export function CameraPanel({ focused }: { focused: boolean }) {
 
   const offline = link === "reconnecting" || link === "connecting";
   const stale = !offline && (camera?.status === "stale" || camera?.status === "down");
+  // "down": no camera source at all; "stale": a stream that was live has stopped.
+  const noCamera = camera?.status === "down";
   const state = vision?.state ?? "NO_OBJECT";
   const locked = state === "LOCKED";
   const box = vision?.box ? toRect(vision.box) : null;
@@ -96,9 +98,15 @@ export function CameraPanel({ focused }: { focused: boolean }) {
 
       {(stale || offline) && (
         <div className="cam-fault" role="status">
-          <p className="cam-fault-title">{offline ? "Not connected to CAVIA" : "Camera stream lost"}</p>
+          <p className="cam-fault-title">
+            {offline ? "Not connected to CAVIA" : noCamera ? "No camera connected" : "Camera stream lost"}
+          </p>
           <p className="cam-fault-hint">
-            {offline ? "Start the backend; this page reconnects by itself." : "Reconnecting to the wrist camera…"}
+            {offline
+              ? "Start the backend; this page reconnects by itself."
+              : noCamera
+                ? "Start vision with the wrist camera or the laptop camera."
+                : "Reconnecting to the wrist camera…"}
           </p>
         </div>
       )}
