@@ -249,3 +249,9 @@ Browser → server:
 `key` messages carry real key-down/up for `w a s d e` only (keyboard EMG mode); the backend applies the
 same rules as `keyboard_sim.emg.keyboard.KeyboardEmg`. Control actions become `trial_start` / `trial_end` /
 `session_start` records in the session log (§6).
+
+The server drives `LiveSimApp` (§8) on one runtime thread: `menu` is the controller's current
+`decision.proposal`, `fsm` is its FSM status, and `emg` events are the gestures that reached the FSM from a
+real key press (the controller's own internal calls are not reported). `set_session` is accepted only at
+CAVIA Home with all keys released and only for `C3_ADAPTIVE`; the participant ID selects the preference
+profile. Rejected controls are logged as `control_rejected`.

@@ -51,8 +51,14 @@ Recordings hold tracker results only (no images) and replay at their original pa
 replay shows the overlays and target panel without a picture.
 `data/vision/recordings/` is gitignored; `data/vision/samples/` holds a small synthetic file for testing.
 
-Served today: session controls, vision results, the camera picture and camera/vision health.
-Menus and the hand are wired in next and show as not connected until then.
+The server runs the real arbitration engine and FSM controller (the one behind `python -m cavia --user 1`):
+lock an object, and the Adaptive and Full menus, hand state and EMG timeline are live. Drive it with the
+same keys as mock mode (`W` `S` `A` `D` `E`). The drawer's participant ID selects whose preference history
+ranks the menu (`--db`, default `data/arbitration/demo.sqlite3`); every run writes a session log to
+`--log-dir` (default `data/arbitration/sessions/`).
+
+Not yet in live mode: the Manual (C1) and Static (C2) conditions, which need support in the arbitration
+engine, and the real hand (the Hand status stays red; the FSM is simulated from the keys).
 
 ## Mock mode
 
