@@ -82,7 +82,11 @@ def main(argv=None):
         pygame.init()
         pygame.key.set_repeat()
         try:
-            screen = pygame.display.set_mode((WIDTH, HEIGHT + 100))
+            # Allow resizing while preserving the existing interface layout.
+            screen = pygame.display.set_mode(
+                (WIDTH, HEIGHT + 100),
+                pygame.RESIZABLE | pygame.SCALED,
+            )
             pygame.display.set_caption("CAVIA live vision + arbitration simulation")
             fonts = (pygame.font.Font(None, 40), pygame.font.Font(None, 30), pygame.font.Font(None, 22))
             clock = pygame.time.Clock()

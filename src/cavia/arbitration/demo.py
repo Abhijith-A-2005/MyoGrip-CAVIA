@@ -295,8 +295,10 @@ def main() -> None:
         app = None
 
         try:
+            # Scale the interface when the user resizes the window.
             screen = pygame.display.set_mode(
-                (WIDTH, HEIGHT + 92)
+                (WIDTH, HEIGHT + 92),
+                pygame.RESIZABLE | pygame.SCALED,
             )
 
             pygame.display.set_caption(
