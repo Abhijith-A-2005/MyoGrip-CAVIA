@@ -13,6 +13,8 @@ from __future__ import annotations
 import argparse
 import logging
 import threading
+import time
+import uuid
 from pathlib import Path
 
 from cavia.core.contracts import Condition
@@ -20,6 +22,7 @@ from cavia.core.contracts import Condition
 from .app import create_app
 from .frames import FrameReceiver
 from .hub import Hub
+from .live_runtime import DashboardRuntime
 from .session import Session
 from .vision_feed import ReplayVision, VisionFeed
 
@@ -73,6 +76,11 @@ def main(argv: list[str] | None = None) -> None:
                         help="vision script run by --vision live (default: src/cavia/vision/objdet.py)")
     parser.add_argument("--replay", type=Path, help="play recorded vision results (JSONL) instead")
     parser.add_argument("--record-vision", type=Path, help="save every vision result to this JSONL file")
+    parser.add_argument("--db", default="data/arbitration/demo.sqlite3", help="preference history (SQLite)")
+    parser.add_argument("--log-dir", type=Path, default=Path("data/arbitration/sessions"),
+                        help="session logs (JSONL), one file per run")
+    parser.add_argument("--result-timeout", type=float, default=2.0,
+                        help="seconds without vision output before a retained menu is marked stale")
     args = parser.parse_args(argv)
     if args.replay and args.vision == "live":
         parser.error("--replay and --vision live are alternatives")
@@ -83,8 +91,12 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit('Install the server dependencies: pip install -e ".[dashboard]"')
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    if args.condition != Condition.C3_ADAPTIVE.value:
+        parser.error("live mode serves Adaptive CAVIA (C3_ADAPTIVE) only; C1/C2 need engine support")
     hub = Hub()
-    session = Session(hub.publish, participant=args.participant, condition=Condition(args.condition))
+    # The runtime is created below; the session's audit goes through it to the session log.
+    session = Session(hub.publish, audit=lambda event, **data: runtime.audit(event, **data),
+                      participant=args.participant, condition=Condition(args.condition))
 
     source = None
     frames = None
@@ -104,7 +116,19 @@ def main(argv: list[str] | None = None) -> None:
         args.record_vision.parent.mkdir(parents=True, exist_ok=True)
         record = args.record_vision.open("w", encoding="utf-8", buffering=1)
         logging.info("Recording vision results to %s", args.record_vision)
-    feed = VisionFeed(source, hub.publish, record=record) if source is not None else None
+    args.log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = args.log_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}.jsonl"
+    session_log = log_path.open("w", encoding="utf-8", buffering=1)
+    logging.info("Session log: %s", log_path)
+
+    runtime = DashboardRuntime(
+        hub, session, db=args.db, log_file=session_log, result_timeout=args.result_timeout,
+        detection_control=getattr(source, "set_paused", None),
+    )
+    # Polled by the runtime thread (not its own thread): VisionProcess is single-threaded.
+    feed = (VisionFeed(source, hub.publish, record=record, on_result=runtime.receive_vision)
+            if source is not None else None)
+    runtime.feed = feed
 
     hub.publish("system", system_status(feed, frames))
     session.announce()
@@ -114,8 +138,7 @@ def main(argv: list[str] | None = None) -> None:
     def shutdown() -> None:
         """Idempotent: runs in the app's shutdown phase and again in `finally` as a fallback."""
         stop.set()
-        if feed is not None:
-            feed.stop()
+        runtime.stop()       # cancels an unfinished grip, closes the preference store
         if hasattr(source, "close") and not getattr(source, "_closed_by_server", False):
             source._closed_by_server = True
             source.close()   # terminates the vision process, releasing the camera
@@ -123,14 +146,16 @@ def main(argv: list[str] | None = None) -> None:
             frames.close()
         if record is not None and not record.closed:
             record.close()
+        if not session_log.closed:
+            session_log.close()
 
-    app = create_app(hub, dist=args.dist, on_control=session.control, frames=frames, on_shutdown=shutdown)
+    app = create_app(hub, dist=args.dist, on_key=runtime.key, on_control=runtime.control, frames=frames,
+                     on_shutdown=shutdown)
     if not (args.dist / "index.html").is_file():
         logging.warning("No dashboard build at %s; run npm run build in src/dashboard/web", args.dist)
 
     start_heartbeat(hub, stop, feed, frames)
-    if feed is not None:
-        feed.start()
+    runtime.start()
     try:
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     finally:
