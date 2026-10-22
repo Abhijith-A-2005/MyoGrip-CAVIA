@@ -296,10 +296,11 @@ def main() -> None:
 
         try:
             # Scale the interface when the user resizes the window.
-            screen = pygame.display.set_mode(
+            window = pygame.display.set_mode(
                 (WIDTH, HEIGHT + 92),
-                pygame.RESIZABLE | pygame.SCALED,
+                pygame.RESIZABLE,
             )
+            screen = pygame.Surface((WIDTH, HEIGHT + 92)).convert()
 
             pygame.display.set_caption(
                 "CAVIA arbitration - keyboard simulation"
@@ -318,6 +319,12 @@ def main() -> None:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         app.quit = True
+
+                    elif event.type == pygame.VIDEORESIZE:
+                        window = pygame.display.set_mode(
+                            (max(1, event.w), max(1, event.h)),
+                            pygame.RESIZABLE,
+                        )
 
                     elif event.type == pygame.KEYDOWN:
                         app.key_down(
@@ -376,6 +383,26 @@ def main() -> None:
                         (24, HEIGHT + index * 21),
                     )
 
+                # Scale the finished interface to the current window size.
+                window_width, window_height = window.get_size()
+                scale = min(
+                    window_width / screen.get_width(),
+                    window_height / screen.get_height(),
+                )
+                scaled_size = (
+                    max(1, int(screen.get_width() * scale)),
+                    max(1, int(screen.get_height() * scale)),
+                )
+                preview = pygame.transform.smoothscale(screen, scaled_size)
+
+                window.fill((24, 26, 31))
+                window.blit(
+                    preview,
+                    (
+                        (window_width - scaled_size[0]) // 2,
+                        (window_height - scaled_size[1]) // 2,
+                    ),
+                )
                 pygame.display.flip()
 
         finally:

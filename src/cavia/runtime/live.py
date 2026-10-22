@@ -82,11 +82,14 @@ def main(argv=None):
         pygame.init()
         pygame.key.set_repeat()
         try:
-            # Allow resizing while preserving the existing interface layout.
-            screen = pygame.display.set_mode(
+            # The actual window can be resized freely.
+            window = pygame.display.set_mode(
                 (WIDTH, HEIGHT + 100),
-                pygame.RESIZABLE | pygame.SCALED,
+                pygame.RESIZABLE,
             )
+
+            # Keep the existing drawing coordinates on a separate surface.
+            screen = pygame.Surface((WIDTH, HEIGHT + 100)).convert()
             pygame.display.set_caption("CAVIA live vision + arbitration simulation")
             fonts = (pygame.font.Font(None, 40), pygame.font.Font(None, 30), pygame.font.Font(None, 22))
             clock = pygame.time.Clock()
@@ -101,6 +104,11 @@ def main(argv=None):
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         app.quit = True
+                    elif event.type == pygame.VIDEORESIZE:
+                        window = pygame.display.set_mode(
+                            (max(1, event.w), max(1, event.h)),
+                            pygame.RESIZABLE,
+                        )
                     elif event.type == pygame.KEYDOWN:
                         app.key_down(pygame.key.name(event.key))
                     elif event.type == pygame.KEYUP:
@@ -117,6 +125,28 @@ def main(argv=None):
                     )
 
                 draw_live(app, screen, fonts)
+
+                # Fit the complete interface inside the current window.
+                window_width, window_height = window.get_size()
+                scale = min(
+                    window_width / screen.get_width(),
+                    window_height / screen.get_height(),
+                )
+                scaled_size = (
+                    max(1, int(screen.get_width() * scale)),
+                    max(1, int(screen.get_height() * scale)),
+                )
+                preview = pygame.transform.smoothscale(screen, scaled_size)
+
+                # Centre the interface without stretching its proportions.
+                window.fill((24, 26, 31))
+                window.blit(
+                    preview,
+                    (
+                        (window_width - scaled_size[0]) // 2,
+                        (window_height - scaled_size[1]) // 2,
+                    ),
+                )
                 pygame.display.flip()
                 app.mark_rendered()
         except KeyboardInterrupt:
