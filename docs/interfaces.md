@@ -37,9 +37,23 @@ Published once per processed frame.
 
 ## 3. MenuProposal (CAVIA → bus → bridge → NPG)
 
-Built once on `LOCKED`; frozen until FSM returns to `HOME`. Rejected at construction if `full_menu` is
-empty, `scores` and `items` differ in length, `OPEN` appears, or a grip is duplicated. `items` may be
-empty (C1 manual cycling uses `policy: FULL_MENU`).
+In live keyboard simulation, a fresh stable LOCKED result creates a menu.
+Before LF confirmation, valid new object/region locks and confidence policy-band
+changes can update it.
+
+Tracking loss retains the last menu, context and selection. An unknown region
+of the same object retains its previous known-region menu.
+
+LF confirmation freezes the displayed context and pauses detection until HOME,
+including time spent in Full Menu after HE. HOME clears the menu and starts
+a fresh detection cycle.
+
+The reference FSM still loads menus only at HOME. The live simulator adapter
+reloads only unconfirmed, zero-progress menus. Firmware integration is separate.
+
+MenuProposal construction rejects an empty full_menu, mismatched scores/items,
+OPEN in the selectable grips, or duplicated grips. items may be empty for the
+FULL_MENU policy.
 
 ```json
 {
@@ -114,7 +128,73 @@ Proposed additions on the control characteristic:
 
 `ST` notifications on state change and every 100 ms during actuation.
 
-## 8. Dashboard protocol (backend ↔ browser)
+## 8. Live keyboard integration transport
+
+`python -m cavia --user 1` starts vision in a child process and the arbitration
+keyboard simulator in the parent. SQLite and FSM operations remain on the
+simulator thread.
+
+### Vision results
+
+The launcher supplies CAVIA_RESULT_PORT. Vision sends tracker output through
+a nonblocking localhost UDP socket, adding:
+
+- ts: monotonic emission timestamp.
+- generation: non-negative integer identifying the detection generation.
+
+Existing fields remain state, object, region, region_confidence and stable.
+region_confidence maps to ArbitrationInput.vision_confidence.
+A null region maps to unknown.
+
+The receiver rejects malformed, out-of-order, pre-HOME and wrong-generation
+results. No vision result is accepted while paused.
+
+Before the first lock, no actionable menu is shown. After a lock, LOST,
+SEARCHING, NO_OBJECT, timeout and process exit retain the last menu and selection.
+The status identifies it as LAST LOCK; deliberate confirmation remains available.
+
+An unknown region on the same object does not erase a known region. A valid
+new region or different object lock may replace it before confirmation.
+Confidence policy-band changes may also update an unconfirmed menu.
+
+The current interface identifies object classes, not physical object instances.
+Distinguishing two cups by identity requires a future vision tracking ID.
+
+### Detection control
+
+The launcher sets CAVIA_CONTROL_STDIN=1 and opens the child's stdin as a pipe.
+Each command is one JSON line containing paused and generation.
+
+Examples:
+{"paused": true, "generation": 1}
+{"paused": false, "generation": 2}
+
+A background reader updates the detector's control snapshot.
+Actual LF confirmation sends PAUSE immediately.
+
+While paused, vision skips YOLO, contour/region processing and tracker updates.
+Camera capture, preview and the loaded model remain available.
+An inference already running may finish, but its obsolete output is rejected.
+
+HE from actuation opens to Full Menu. Detection remains paused there.
+Reconfirming a grip or fully opening the hand does not resume detection.
+
+HOME clears the menu, sends RESUME and advances the generation.
+Vision resets tracking, and the simulator requires fresh matching-generation
+results with released keys before loading the next menu.
+
+Without the launcher control environment, standalone vision runs continuously.
+
+### History
+
+Retaining or redisplaying a menu creates no new selection record.
+Confirmation refers to the displayed menu snapshot.
+
+Existing simulator preference-acceptance rules remain unchanged:
+2 seconds and maximum simulated progress >= 0.2.
+grasp_success remains unknown.
+
+## 9. Dashboard protocol (backend ↔ browser)
 
 Built against the dashboard on `feat/cavia-dashboard` (`src/cavia/dashboard/`). TypeScript mirror:
 `src/cavia/dashboard/web/src/types/messages.ts`.

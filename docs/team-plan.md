@@ -56,8 +56,8 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Runtime orchestrator + condition switch (C1/C2/C3) | Abhijith, Adwaith | ☐ |
 | Profiles (JSON) + preference updates from FSM outcomes | Adwaith | ☐ |
 | Vision: region confidence tuning, failure states shown on overlay, FPS/latency measurement | Diya, Meghna | ☐ |
-| Compare dashboards A and B, keep one (D18) | Team | ☐ |
-| FastAPI backend serving the dashboard protocol (`docs/interfaces.md` §8) | Adwaith | ☐ |
+| Compare dashboards A and B, keep one (D20) | Team | ☐ |
+| FastAPI backend serving the dashboard protocol (`docs/interfaces.md` §9) | Adwaith | ☐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |
 | Remove camera `auto` / laptop fallback or pin `CAMERA_MODE=xiao` before pilot (D14) | Abhijith, Diya | ☐ |

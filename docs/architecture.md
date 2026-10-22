@@ -171,7 +171,7 @@ Gaps in current `myogrip_fsm.c` (to close before hardware integration):
 ## 6. Dashboard (Adwaith & Meghna)
 
 FastAPI serves the built web UI (`src/cavia/dashboard/web/dist/`), an MJPEG endpoint of the raw camera
-frame, and a WebSocket that pushes bus state to the browser (protocol: `docs/interfaces.md` §8).
+frame, and a WebSocket that pushes bus state to the browser (protocol: `docs/interfaces.md` §9).
 The browser draws the overlays itself (reticle, object box, region highlight), so they match the theme.
 
 Panels: wrist camera, target (object, region, confidence ring, evidence bars), hand (state rail, grip
@@ -180,7 +180,7 @@ EMG timeline (gestures and activity duration bars), system status. Experimenter 
 condition, start/end trial, grasp outcome, notes. A second page holds the evaluation results.
 
 Two dashboards are being built in parallel from `DASHBOARD_BRIEF.md` (Adwaith on `feat/cavia-dashboard`,
-Meghna separately); the team keeps the better one (D18).
+Meghna separately); the team keeps the better one (D20).
 
 ## 7. Evaluation (Adwaith & Meghna)
 

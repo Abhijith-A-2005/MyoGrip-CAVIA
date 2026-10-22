@@ -1,4 +1,3 @@
-import numpy as np 
 # regions.py
 
 FUNCTIONAL_REGIONS = {

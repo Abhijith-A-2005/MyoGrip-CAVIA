@@ -87,4 +87,4 @@ web/public/       favicon, mock camera frames
 ## Data contract
 
 `ws://<host>:8000/ws` and `http://<host>:8000/video` (MJPEG). Message shapes are in
-[`docs/interfaces.md`](../../../docs/interfaces.md) section 8 and mirrored in `web/src/types/messages.ts`.
+[`docs/interfaces.md`](../../../docs/interfaces.md) section 9 and mirrored in `web/src/types/messages.ts`.
