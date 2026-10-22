@@ -21,6 +21,45 @@ npm run dev          # http://localhost:5173 (mock mode by default)
 | `npm run test:fsm` | Runs the shared FSM vectors (`tests/fsm/vectors.json`) against the mock FSM |
 | `npx oxlint src` | Lint |
 
+## Live mode (Python backend)
+
+```bash
+cd src/dashboard/web && npm run build      # the backend serves this build
+cd ../../..                                 # repo root
+pip install -e ".[dashboard]"
+python -m cavia.server                      # http://127.0.0.1:8000
+```
+
+Options: `--port 8000`, `--host 0.0.0.0` (open from another device on the network), `--participant P01`,
+`--condition C3_ADAPTIVE`. While developing the UI against the backend, run `npm run dev` and open
+`http://localhost:5173/?live=1` instead (hot reload, same backend).
+
+Vision on the dashboard:
+
+```bash
+python -m cavia.server --vision live                       # run objdet.py with the camera (needs ".[vision]")
+python -m cavia.server --vision live --record-vision data/vision/recordings/mug.jsonl   # ...and record it
+python -m cavia.server --replay data/vision/recordings/mug.jsonl                         # replay, no camera
+python -m cavia.server --replay data/vision/samples/synthetic-cup-handle.jsonl           # synthetic sample
+```
+
+With `--vision live` the camera picture appears in the dashboard's viewfinder (the OpenCV window still
+opens too). `--vision-script PATH` runs another script in place of `objdet.py`, for example a stand-in
+that uses the same `publish_result` / `publish_frame` calls when no camera stack is installed.
+
+Recordings hold tracker results only (no images) and replay at their original pace in a loop, so a
+replay shows the overlays and target panel without a picture.
+`data/vision/recordings/` is gitignored; `data/vision/samples/` holds a small synthetic file for testing.
+
+The server runs the real arbitration engine and FSM controller (the one behind `python -m cavia --user 1`):
+lock an object, and the Adaptive and Full menus, hand state and EMG timeline are live. Drive it with the
+same keys as mock mode (`W` `S` `A` `D` `E`). The drawer's participant ID selects whose preference history
+ranks the menu (`--db`, default `data/arbitration/demo.sqlite3`); every run writes a session log to
+`--log-dir` (default `data/arbitration/sessions/`).
+
+Not yet in live mode: the Manual (C1) and Static (C2) conditions, which need support in the arbitration
+engine, and the real hand (the Hand status stays red; the FSM is simulated from the keys).
+
 ## Mock mode
 
 No backend needed: a scripted camera lock, the menus, and a TypeScript port of the reference FSM

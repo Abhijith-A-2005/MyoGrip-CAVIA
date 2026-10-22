@@ -24,6 +24,21 @@
   object-fit: cover;
 }
 
+.cam-feed[data-hidden] {
+  visibility: hidden;
+}
+
+/* Results are arriving but there is no picture (replay, or video not wired yet). */
+.cam-novideo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 64px;
+  text-align: center;
+  font-size: var(--t-small);
+  color: var(--moss);
+}
+
 .cam-vignette {
   position: absolute;
   inset: 0;

@@ -13,7 +13,7 @@ dependencies = []
 vision = ["ultralytics", "opencv-python", "numpy", "python-dotenv"]
 dashboard = ["fastapi", "uvicorn[standard]"]
 sim = ["pygame-ce"]
-dev = ["pytest"]
+dev = ["pytest", "httpx2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

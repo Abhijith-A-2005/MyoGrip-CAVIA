@@ -49,6 +49,7 @@ src/cavia/core/                   Message contracts, grip library, config, event
 src/keyboard_sim/fsm/             Python reference FSM (mirror of firmware) + interactive simulator
 src/keyboard_sim/emg/             EMG input sources (WASDE keyboard emulator; detector/replay to come)
 src/dashboard/                    Dashboard UI (React + Vite, mock mode); see src/dashboard/README.md
+src/cavia/server/                 Dashboard backend: FastAPI, /ws state hub, session controls (python -m cavia.server)
 tests/                            pytest suite; tests/fsm/vectors.json = shared FSM spec
 src/firmware/npg-lite-controller/ ESP-IDF firmware for NPG Lite (BLE EMG streaming + MyoGrip FSM). GPL-3.0
 src/firmware/xiao-camera/         XIAO ESP32-S3 Sense camera sensor profile (OV2640)
@@ -71,6 +72,7 @@ python -m keyboard_sim.fsm.sim --menu LATERAL,PINCH  # FSM window + keyboard EMG
 # Dashboard (from src/dashboard/web)
 npm install && npm run dev                           # http://localhost:5173, mock data, WASDE keys, ` drawer
 npm run build && npm run test:fsm                    # build to dist/; mock FSM vs shared vectors
+# then, from the repo root: pip install -e ".[dashboard]" && python -m cavia.server   (http://127.0.0.1:8000)
 
 # Vision (laptop): settings in src/cavia/vision/.env (copy from .env.example)
 pip install -r src/cavia/vision/requirements.txt     # pinned vision environment

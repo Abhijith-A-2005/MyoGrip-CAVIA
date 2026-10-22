@@ -144,6 +144,12 @@ a nonblocking localhost UDP socket, adding:
 
 Existing fields remain state, object, region, region_confidence and stable.
 region_confidence maps to ArbitrationInput.vision_confidence.
+
+For the dashboard (§9) each result also carries: `det_conf`, `reticle_score`, `stability` (the parts
+of region_confidence), `source` (`XIAO`/`LAPTOP`), `frame_seq`, and `box` / `region_box`
+(`[x1, y1, x2, y2]` normalised 0..1, or null). The boxes are sent only when the frame's detection
+matches the reported object/region; `region_box` comes from `regions.region_rect`, which mirrors the
+class-specific zone rules. The arbitration runtime ignores these fields.
 A null region maps to unknown.
 
 The receiver rejects malformed, out-of-order, pre-HOME and wrong-generation
@@ -159,6 +165,14 @@ Confidence policy-band changes may also update an unconfirmed menu.
 
 The current interface identifies object classes, not physical object instances.
 Distinguishing two cups by identity requires a future vision tracking ID.
+
+### Camera frames (dashboard only)
+
+When launched by the dashboard server, vision also gets `CAVIA_FRAME_PORT` and sends the raw camera
+frame (no drawings) over a localhost TCP connection: `[uint32 length][float64 capture time,
+time.monotonic][JPEG]`, at most about 20 fps and at most 2 MB per frame. A single-slot sender keeps
+only the newest frame, so a slow server can never delay detection. Frames keep flowing while detection
+is paused. Without `CAVIA_FRAME_PORT` nothing is encoded or sent. The server serves them at `/video`.
 
 ### Detection control
 
@@ -196,11 +210,13 @@ grasp_success remains unknown.
 
 ## 9. Dashboard protocol (backend ↔ browser)
 
-Built against the dashboard on `feat/cavia-dashboard` (`src/dashboard/`). TypeScript mirror:
+Server: `src/cavia/server/` (`python -m cavia.server`). Client: `src/dashboard/`. TypeScript mirror:
 `src/dashboard/web/src/types/messages.ts`.
 
 Endpoints: `ws://<host>:8000/ws` (state), `http://<host>:8000/video` (MJPEG of the raw camera frame;
-the dashboard draws its own overlays), and the built UI from `src/dashboard/web/dist/`.
+the dashboard draws its own overlays; 503 until the first frame, and the stream ends after 5 s without
+a new frame), and the built UI from `src/dashboard/web/dist/`. `system.camera.fps` and `latency_ms`
+(capture to server) come from the frame stream when it is flowing; `latency_ms` 0 means not measured.
 
 Every server message is `{"type": "<kind>", "data": {...}}`. On connect the server sends one `snapshot`,
 then incremental messages.
@@ -233,3 +249,9 @@ Browser → server:
 `key` messages carry real key-down/up for `w a s d e` only (keyboard EMG mode); the backend applies the
 same rules as `keyboard_sim.emg.keyboard.KeyboardEmg`. Control actions become `trial_start` / `trial_end` /
 `session_start` records in the session log (§6).
+
+The server drives `LiveSimApp` (§8) on one runtime thread: `menu` is the controller's current
+`decision.proposal`, `fsm` is its FSM status, and `emg` events are the gestures that reached the FSM from a
+real key press (the controller's own internal calls are not reported). `set_session` is accepted only at
+CAVIA Home with all keys released and only for `C3_ADAPTIVE`; the participant ID selects the preference
+profile. Rejected controls are logged as `control_rejected`.

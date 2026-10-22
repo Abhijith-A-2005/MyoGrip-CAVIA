@@ -57,7 +57,11 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Profiles (JSON) + preference updates from FSM outcomes | Adwaith | ☐ |
 | Vision: region confidence tuning, failure states shown on overlay, FPS/latency measurement | Diya, Meghna | ☐ |
 | Compare dashboards A and B, keep one (D20) | Team | ☐ |
-| FastAPI backend serving the dashboard protocol (`docs/interfaces.md` §9) | Adwaith | ☐ |
+| FastAPI backend serving the dashboard protocol (`docs/interfaces.md` §9): skeleton, hub, session (`cavia.server`) | Adwaith | ☑ |
+| Integration: vision results to the dashboard (live, record, replay) | Adwaith | ☑ |
+| Integration: camera picture to the dashboard (`/video` MJPEG from vision frames) | Adwaith | ☑ |
+| Integration: menus, FSM and EMG to the dashboard (`DashboardRuntime` around LiveSimApp) | Adwaith | ☑ |
+| Arbitration engine: Manual (C1) and Static (C2) conditions, so live mode can run all three | Abhijith, Adwaith | ☐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |
 | Remove camera `auto` / laptop fallback or pin `CAMERA_MODE=xiao` before pilot (D14) | Abhijith, Diya | ☐ |
