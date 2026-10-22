@@ -66,6 +66,7 @@ export type EmgMsg = {
 };
 
 export type SystemMsg = {
+  /** latency_ms 0 = not measured (hidden in the UI). */
   camera: { status: HealthStatus; source: "XIAO" | "LAPTOP"; fps: number; latency_ms: number };
   vision: { status: HealthStatus; model: string };
   hand_link: { status: HealthStatus; battery_pct: number | null };

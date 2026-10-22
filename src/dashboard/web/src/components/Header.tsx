@@ -86,7 +86,7 @@ export function Header() {
           <Status
             label={devCamera ? "Laptop camera" : "Camera"}
             tone={devCamera ? "warn" : tone(cam?.status)}
-            detail={cam ? `${cam.source}, ${cam.fps.toFixed(1)} fps, ${cam.latency_ms} ms` : undefined}
+            detail={cam ? `${cam.source}, ${cam.fps.toFixed(1)} fps${cam.latency_ms > 0 ? `, ${cam.latency_ms} ms` : ""}` : undefined}
           />
           <Status label="Vision" tone={tone(system?.vision.status)} detail={system?.vision.model} />
           <Status

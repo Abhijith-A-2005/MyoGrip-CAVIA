@@ -28,6 +28,7 @@ export function CameraPanel({ focused }: { focused: boolean }) {
   const camera = useDashboard((s) => s.system?.camera);
   const link = useDashboard((s) => s.link);
   const [frameKey, setFrameKey] = useState(0);
+  const [videoOk, setVideoOk] = useState(true);
   const src = videoUrl();
 
   const offline = link === "reconnecting" || link === "connecting";
@@ -39,18 +40,29 @@ export function CameraPanel({ focused }: { focused: boolean }) {
   const box = vision?.box ? toRect(vision.box) : null;
   const region = vision?.region_box ? toRect(vision.region_box) : null;
 
-  // MJPEG streams end on network errors; reconnect the <img> instead of showing a broken frame.
+  // MJPEG streams end on network errors. Retry every 2 s (never in a tight loop) while the video
+  // is failing or the camera is stale, instead of showing a broken frame.
+  const retrying = !isMock() && (stale || !videoOk);
   useEffect(() => {
-    if (!stale || isMock()) return;
+    if (!retrying) return;
     const id = window.setInterval(() => setFrameKey((k) => k + 1), 2000);
     return () => window.clearInterval(id);
-  }, [stale]);
+  }, [retrying]);
 
   return (
     <section className="cam" data-area="camera" data-focused={focused || undefined} aria-label="Wrist camera">
       {!stale && !offline && (
-        <img key={frameKey} className="cam-feed" src={src} alt="" onError={() => setFrameKey((k) => k + 1)} />
+        <img
+          key={frameKey}
+          className="cam-feed"
+          src={src}
+          alt=""
+          data-hidden={!videoOk || undefined}
+          onLoad={() => setVideoOk(true)}
+          onError={() => setVideoOk(false)}
+        />
       )}
+      {!videoOk && !stale && !offline && <p className="cam-novideo">Video not available yet</p>}
       <div className="cam-vignette" />
 
       <svg className="cam-overlay" viewBox={`0 0 ${VW} ${VH}`} aria-hidden>
@@ -91,7 +103,7 @@ export function CameraPanel({ focused }: { focused: boolean }) {
         {camera && !stale && !offline && (
           <span className="cam-stats num">
             {camera.source === "LAPTOP" ? "Laptop camera (dev), " : ""}
-            {camera.fps.toFixed(1)} fps, {camera.latency_ms} ms
+            {camera.fps.toFixed(1)} fps{camera.latency_ms > 0 ? `, ${camera.latency_ms} ms` : ""}
           </span>
         )}
       </div>
