@@ -68,3 +68,46 @@ def get_targeted_region(class_name, box, reticle_point):
 
     zone_fn = ZONE_RULES.get(class_name)
     return zone_fn(nx, ny, regions) if zone_fn else (regions[0], 0.0)
+
+# --- display geometry (dashboard overlays only; the zone rules above stay the source of truth) ---
+
+# Region drawn as the outer strip on the reticle's side (|nx| > 0.5 in the rules above).
+_SIDE_STRIP = {("cup", "handle"), ("toothbrush", "shank"), ("book", "side_edge"),
+               ("cell phone", "side_edge"), ("remote", "side_edge")}
+# Region drawn as the middle band (|nx| <= 0.5).
+_MIDDLE = {("cup", "body"), ("toothbrush", "handle"), ("book", "cover_face")}
+
+
+def region_rect(class_name, box, region, reticle_point):
+    """Pixel rectangle (x1, y1, x2, y2) covered by `region` inside `box`, matching the zone rules."""
+    x1, y1, x2, y2 = box
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    hw, hh = (x2 - x1) / 2, (y2 - y1) / 2
+    key = (class_name, region)
+    nx = (reticle_point[0] - cx) / (hw + 1e-6)
+
+    # Phone/remote: the central fallback zone is also named side_edge, so decide by position.
+    if key in _SIDE_STRIP and (class_name not in ("cell phone", "remote") or abs(nx) > 0.5):
+        if reticle_point[0] >= cx:
+            return (cx + 0.5 * hw, y1, x2, y2)
+        return (x1, y1, cx - 0.5 * hw, y2)
+    if key in _MIDDLE:
+        return (cx - 0.5 * hw, y1, cx + 0.5 * hw, y2)
+    if key == ("bottle", "cap"):
+        return (x1, y1, x2, cy - 0.5 * hh)
+    if key == ("bottle", "body"):
+        return (x1, cy - 0.5 * hh, x2, y2)
+    if class_name in ("cell phone", "remote"):
+        if region == "lower_support":
+            return (cx - 0.5 * hw, cy + 0.4 * hh, cx + 0.5 * hw, y2)
+        # The rule falls back to its first region in the central zone; show that zone.
+        return (cx - 0.5 * hw, y1, cx + 0.5 * hw, cy + 0.4 * hh)
+    return (x1, y1, x2, y2)   # single-region objects (spoon) and anything unknown
+
+
+def normalize_rect(rect, frame_shape):
+    """Pixel rectangle -> [x1, y1, x2, y2] as fractions of the frame, clamped to 0..1."""
+    h, w = frame_shape[:2]
+    x1, y1, x2, y2 = rect
+    clamp = lambda v: round(min(1.0, max(0.0, v)), 4)  # noqa: E731
+    return [clamp(x1 / w), clamp(y1 / h), clamp(x2 / w), clamp(y2 / h)]

@@ -24,13 +24,17 @@ class RegionTracker:
         self.missed = 0
         self.out = self._make_out(None, None, 0.0)
 
-    def _make_out(self, obj, region, conf):
+    def _make_out(self, obj, region, conf, det=0.0, ret=0.0, stability=0.0):
+        # det_conf / reticle_score / stability are the parts of region_confidence (shown on the dashboard).
         return {
             "state": self.state,
             "object": obj,
             "region": region,
             "region_confidence": round(conf, 2),
             "stable": self.state == LOCKED,
+            "det_conf": round(det, 3),
+            "reticle_score": round(ret, 3),
+            "stability": round(stability, 3),
         }
 
     def update(self, cand):
@@ -40,7 +44,8 @@ class RegionTracker:
             if self.state in (LOCKED, LOST) and self.missed <= self.lost_grace:
                 self.state = LOST                    # hold last answer briefly
                 self.out = self._make_out(self.out["object"], self.out["region"],
-                                          self.out["region_confidence"])
+                                          self.out["region_confidence"], self.out["det_conf"],
+                                          self.out["reticle_score"], self.out["stability"])
             else:
                 self.reset()
             return self.out
@@ -64,5 +69,5 @@ class RegionTracker:
         else:
             self.state, self.locked_pair = SEARCHING, None
 
-        self.out = self._make_out(pair[0], pair[1], conf)
+        self.out = self._make_out(pair[0], pair[1], conf, det, ret, stability)
         return self.out

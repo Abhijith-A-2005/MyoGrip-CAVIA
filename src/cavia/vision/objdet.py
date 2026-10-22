@@ -5,7 +5,7 @@ import time
 import numpy as np
 from camera_source import CameraSettings, CameraSource
 from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
-from regions import get_targeted_region
+from regions import get_targeted_region, normalize_rect, region_rect
 from cavia.runtime.vision_link import DetectionControl, publish_result
 
 # Camera window title
@@ -112,12 +112,26 @@ def reticle_overlaps_box(reticle_point, box):
 tracker = RegionTracker()
 last_sent = None
 
-def emit(out, generation=0):
-    """Forward every tracker output; keep console printing on changes only."""
+def overlay(out, candidate, frame_shape):
+    """Dashboard overlay for this frame: boxes only when they belong to the reported object/region."""
+    box = region_box = None
+    if candidate is not None and candidate["object"] == out["object"]:
+        box = normalize_rect(candidate["box"], frame_shape)
+        if candidate["region"] == out["region"]:
+            region_box = normalize_rect(candidate["region_box"], frame_shape)
+    return {"box": box, "region_box": region_box}
+
+
+def emit(out, generation=0, extras=None):
+    """Forward every tracker output; keep console printing on changes only.
+
+    `extras` (camera source, frame counter, overlay boxes) travel with the result for the
+    dashboard; the arbitration runtime ignores them.
+    """
     global last_sent
 
     # Unchanged locks must still be forwarded as heartbeats.
-    publish_result(out, generation=generation)
+    publish_result({**out, **(extras or {})}, generation=generation)
 
     key = (
         out["state"],
@@ -156,6 +170,7 @@ stream = CameraSource(camera_settings).start()
 detection_control = DetectionControl()
 
 last_control_generation = -1
+frame_seq = 0
 last_sequence = -1
 last_session = None
 
@@ -211,7 +226,7 @@ try:
         if frame is None or stale:
             # A camera outage must not carry a previous lock into recovery.
             tracker.reset()
-            emit(tracker.out, generation)
+            emit(tracker.out, generation, {"source": snapshot["source"]})
             message = f"{snapshot['source']} / {stream.mode}: {snapshot['status']}"
             cv2.imshow(WINDOW, camera_status_frame(message))
             if quit_requested():
@@ -221,7 +236,7 @@ try:
         # Never carry a lock/history from one camera (or camera session) to another.
         if snapshot["session"] != last_session:
             tracker.reset()
-            emit(tracker.out, generation)
+            emit(tracker.out, generation, {"source": snapshot["source"]})
             last_session = snapshot["session"]
             last_sequence = -1
             print(f"[CAMERA] Active: {snapshot['source']}", flush=True)
@@ -232,6 +247,7 @@ try:
                 break
             continue
         last_sequence = snapshot["sequence"]
+        frame_seq += 1
 
         # frame stays raw; all drawing goes on display_frame
         display_frame = frame.copy()
@@ -285,6 +301,8 @@ try:
                             "region": region,
                             "det_conf": conf,
                             "reticle_score": min(1.0, margin / 0.25),
+                            "box": (x1, y1, x2, y2),
+                            "region_box": region_rect(cls_name, (x1, y1, x2, y2), region, reticle_point),
                         }
 
         # Suppress a result if this frame expired or the camera reconnected
@@ -294,7 +312,7 @@ try:
                 or current["session"] != snapshot["session"]
                 or time.monotonic() - snapshot["received_at"] > MAX_FRAME_AGE):
             tracker.reset()
-            emit(tracker.out, generation)
+            emit(tracker.out, generation, {"source": snapshot["source"]})
             display_frame = camera_status_frame("STALE / DISCONNECTED")
             cv2.imshow(WINDOW, display_frame)
             if quit_requested():
@@ -306,7 +324,11 @@ try:
             continue
 
         out = tracker.update(candidate)
-        emit(out, generation)
+        emit(out, generation, {
+            "source": snapshot["source"],
+            "frame_seq": frame_seq,
+            **overlay(out, candidate, frame.shape),
+        })
 
         color = STATE_COLORS[out["state"]]
         cv2.putText(display_frame, out["state"], (10, 25),
