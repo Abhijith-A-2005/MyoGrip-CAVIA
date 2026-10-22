@@ -21,6 +21,22 @@ npm run dev          # http://localhost:5173 (mock mode by default)
 | `npm run test:fsm` | Runs the shared FSM vectors (`tests/fsm/vectors.json`) against the mock FSM |
 | `npx oxlint src` | Lint |
 
+## Live mode (Python backend)
+
+```bash
+cd src/dashboard/web && npm run build      # the backend serves this build
+cd ../../..                                 # repo root
+pip install -e ".[dashboard]"
+python -m cavia.server                      # http://127.0.0.1:8000
+```
+
+Options: `--port 8000`, `--host 0.0.0.0` (open from another device on the network), `--participant P01`,
+`--condition C3_ADAPTIVE`. While developing the UI against the backend, run `npm run dev` and open
+`http://localhost:5173/?live=1` instead (hot reload, same backend).
+
+The backend (`src/cavia/server/`) already serves the session controls from the experimenter drawer;
+camera, vision, menus and the hand are wired in step by step and show as not connected until then.
+
 ## Mock mode
 
 No backend needed: a scripted camera lock, the menus, and a TypeScript port of the reference FSM

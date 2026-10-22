@@ -196,7 +196,7 @@ grasp_success remains unknown.
 
 ## 9. Dashboard protocol (backend ↔ browser)
 
-Built against the dashboard on `feat/cavia-dashboard` (`src/dashboard/`). TypeScript mirror:
+Server: `src/cavia/server/` (`python -m cavia.server`). Client: `src/dashboard/`. TypeScript mirror:
 `src/dashboard/web/src/types/messages.ts`.
 
 Endpoints: `ws://<host>:8000/ws` (state), `http://<host>:8000/video` (MJPEG of the raw camera frame;
