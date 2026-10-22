@@ -170,7 +170,7 @@ Gaps in current `myogrip_fsm.c` (to close before hardware integration):
 
 ## 6. Dashboard (Adwaith & Meghna)
 
-FastAPI serves the built web UI (`src/cavia/dashboard/web/dist/`), an MJPEG endpoint of the raw camera
+FastAPI serves the built web UI (`src/dashboard/web/dist/`), an MJPEG endpoint of the raw camera
 frame, and a WebSocket that pushes bus state to the browser (protocol: `docs/interfaces.md` §9).
 The browser draws the overlays itself (reticle, object box, region highlight), so they match the theme.
 

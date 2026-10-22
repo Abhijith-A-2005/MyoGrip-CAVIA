@@ -8,7 +8,7 @@ from cavia.core.contracts import (
     Activity, Condition, EmgEvent, FsmState, Grip, MenuConfidence, MenuContext, MenuKind,
     MenuPolicy, MenuProposal,
 )
-from cavia.fsm.machine import MyoGripFsm
+from keyboard_sim.fsm.machine import MyoGripFsm
 
 VECTORS = json.loads((Path(__file__).parent / "vectors.json").read_text())
 FULL = [Grip[g] for g in VECTORS["full_menu"]]

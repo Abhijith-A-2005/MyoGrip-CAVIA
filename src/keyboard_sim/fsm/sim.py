@@ -16,8 +16,8 @@ from cavia.core.contracts import (
     Condition, EmgEvent, FsmState, Grip, MenuConfidence, MenuContext, MenuPolicy, MenuProposal,
 )
 from cavia.core.grips import GRIP_LIBRARY, full_menu
-from cavia.emg.keyboard import GESTURE_KEYS, HELP, KeyboardEmg
-from cavia.fsm.machine import ACTUATION_STATES, MyoGripFsm
+from keyboard_sim.emg.keyboard import GESTURE_KEYS, HELP, KeyboardEmg
+from keyboard_sim.fsm.machine import ACTUATION_STATES, MyoGripFsm
 
 WIDTH, HEIGHT = 980, 560
 MAX_TICK = 0.1

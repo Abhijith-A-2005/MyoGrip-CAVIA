@@ -8,7 +8,7 @@ import time
 from cavia.arbitration.contracts import ArbitrationInput, user_key
 from cavia.arbitration.demo import ArbitrationSimApp
 from cavia.core.contracts import EmgEvent, FsmState
-from cavia.fsm.machine import ACTUATION_STATES, MENU_STATES
+from keyboard_sim.fsm.machine import ACTUATION_STATES, MENU_STATES
 
 
 class LiveSimApp(ArbitrationSimApp):

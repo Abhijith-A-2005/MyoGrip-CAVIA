@@ -11,7 +11,7 @@ import uuid
 from cavia.arbitration.engine import ArbitrationEngine
 from cavia.arbitration.preferences import PreferenceStore
 from cavia.core.contracts import FsmState
-from cavia.fsm.sim import draw, WIDTH, HEIGHT
+from keyboard_sim.fsm.sim import draw, WIDTH, HEIGHT
 from .controller import LiveSimApp
 from .vision_link import VisionProcess
 

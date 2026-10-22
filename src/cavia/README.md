@@ -8,8 +8,9 @@ Laptop-side software for MyoGrip CAVIA (Context-Aware Visual Intent Arbitration)
 | `fsm/` | ✅ | Python reference FSM (mirror of the firmware FSM) + simulator window |
 | `emg/` | ◐ | WASDE keyboard EMG emulator (gesture detector and CSV replay to come) |
 | `vision/` | ◐ | Camera source, YOLO detection, reticle, regions, tracker (standalone script; packaging pending) |
-| `dashboard/` | ◐ | Web UI with mock mode ([`dashboard/README.md`](dashboard/README.md)); FastAPI backend pending |
 | `arbitration/`, `runtime/`, `eval/` | ☐ | Planned, see [`docs/architecture.md`](../../docs/architecture.md) |
+
+The web dashboard is maintained separately in [`src/dashboard/`](../dashboard/README.md).
 
 ## Setup
 

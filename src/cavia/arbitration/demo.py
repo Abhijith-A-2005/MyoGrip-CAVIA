@@ -16,12 +16,12 @@ from cavia.core.contracts import (
     MenuKind,
     MenuPolicy,
 )
-from cavia.fsm.machine import (
+from keyboard_sim.fsm.machine import (
     ACTUATION_STATES,
     MENU_STATES,
     MyoGripFsm,
 )
-from cavia.fsm.sim import (
+from keyboard_sim.fsm.sim import (
     SimApp,
     draw,
     WIDTH,

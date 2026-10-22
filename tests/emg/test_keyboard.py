@@ -1,7 +1,7 @@
 import pytest
 
 from cavia.core.contracts import Activity, EmgEvent
-from cavia.emg.keyboard import KeyboardEmg
+from keyboard_sim.emg.keyboard import KeyboardEmg
 
 
 @pytest.mark.parametrize("key, event", [

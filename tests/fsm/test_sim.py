@@ -4,8 +4,8 @@ import pytest
 
 from cavia.core.config import FsmConfig
 from cavia.core.contracts import FsmState, Grip, MenuPolicy
-from cavia.fsm.machine import MyoGripFsm
-from cavia.fsm.sim import SimApp, parse_grips
+from keyboard_sim.fsm.machine import MyoGripFsm
+from keyboard_sim.fsm.sim import SimApp, parse_grips
 
 
 @pytest.fixture

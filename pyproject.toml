@@ -17,7 +17,7 @@ dev = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["cavia*"]
+include = ["cavia*","keyboard_sim*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
