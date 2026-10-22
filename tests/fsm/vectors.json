@@ -1,5 +1,5 @@
 {
-  "description": "Shared MyoGrip FSM test vectors (updated for D16). Source of truth for both cavia.fsm.machine (Python) and myogrip_fsm.c (firmware). c_ref = case number in myogrip_selftest.c; diff = intentional change from the current C behaviour that the firmware must adopt.",
+  "description": "Shared MyoGrip FSM test vectors (updated for D16). Source of truth for both keyboard_sim.fsm.machine (Python) and myogrip_fsm.c (firmware). c_ref = case number in myogrip_selftest.c; diff = intentional change from the current C behaviour that the firmware must adopt.",
   "config": {"close_speed": 0.5, "open_speed": 0.5, "he_return_speed": 1.0},
   "full_menu": ["POWER", "PINCH", "TRIPOD", "LATERAL"],
   "ops": {

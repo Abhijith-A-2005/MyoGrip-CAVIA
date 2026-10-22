@@ -1,4 +1,4 @@
-// TypeScript port of src/cavia/fsm/machine.py and src/cavia/emg/keyboard.py, used only in mock mode.
+// TypeScript port of src/keyboard_sim/fsm/machine.py and src/keyboard_sim/emg/keyboard.py, used only in mock mode.
 // The backend's Python FSM stays the source of truth (tests/fsm/vectors.json).
 
 import type {

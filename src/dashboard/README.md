@@ -24,7 +24,7 @@ npm run dev          # http://localhost:5173 (mock mode by default)
 ## Mock mode
 
 No backend needed: a scripted camera lock, the menus, and a TypeScript port of the reference FSM
-(`src/state/mockFsm.ts`, kept identical to `src/cavia/fsm/machine.py` by `npm run test:fsm`).
+(`src/state/mockFsm.ts`, kept identical to `src/keyboard_sim/fsm/machine.py` by `npm run test:fsm`).
 
 | URL option | Effect |
 |---|---|

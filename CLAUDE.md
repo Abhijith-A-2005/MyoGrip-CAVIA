@@ -46,8 +46,8 @@ command burden and selection time without increasing incorrect choices or reduci
 ```text
 src/cavia/vision/                 Laptop vision: camera source (XIAO/laptop), YOLO, reticle, regions, tracker
 src/cavia/core/                   Message contracts, grip library, config, event bus
-src/cavia/fsm/                    Python reference FSM (mirror of firmware) + interactive simulator
-src/cavia/emg/                    EMG input sources (WASDE keyboard emulator; detector/replay to come)
+src/keyboard_sim/fsm/             Python reference FSM (mirror of firmware) + interactive simulator
+src/keyboard_sim/emg/             EMG input sources (WASDE keyboard emulator; detector/replay to come)
 src/dashboard/                    Dashboard UI (React + Vite, mock mode); see src/dashboard/README.md
 tests/                            pytest suite; tests/fsm/vectors.json = shared FSM spec
 src/firmware/npg-lite-controller/ ESP-IDF firmware for NPG Lite (BLE EMG streaming + MyoGrip FSM). GPL-3.0
@@ -64,7 +64,7 @@ docs/                             Architecture, interfaces, decisions, plan
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[sim,dev]"                          # core + simulator + tests; add ",vision" for camera/YOLO
 pytest                                               # contracts, FSM vectors, keyboard, simulator
-python -m cavia.fsm.sim --menu LATERAL,PINCH         # FSM window + keyboard EMG, no hardware
+python -m keyboard_sim.fsm.sim --menu LATERAL,PINCH  # FSM window + keyboard EMG, no hardware
 #   W up (SE) · S down (SF) · A confirm (LF) · D full menu (LE) · E back (HE)
 #   actuation: hold A = close · hold D = open · release = hold · M reload menu · Q quit
 

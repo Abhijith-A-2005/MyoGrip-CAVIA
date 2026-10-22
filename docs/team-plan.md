@@ -34,7 +34,7 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Repo foundation: CLAUDE.md, docs, package layout, cleanup | Adwaith | ☑ |
 | `core/contracts.py`, `core/grips.py`, `core/bus.py`, config | Adwaith | ☑ |
 | Python reference FSM + shared vectors (`tests/fsm/vectors.json`, ported from the 33 C selftest cases) | Adwaith | ☑ |
-| Keyboard EMG emulator + `python -m cavia.fsm.sim` | Adwaith | ☑ |
+| Keyboard EMG emulator + `python -m keyboard_sim.fsm.sim` | Adwaith | ☑ |
 | WASDE key mapping with hold-to-actuate, simulator window (D15) | Adwaith | ☑ |
 | Update `myogrip_fsm.c` to pass the shared vectors (dynamic menu, `grip_progress` + tick, HE controlled opening, no gate after LF, fully open stays in actuation (D16), abort opens before HOME and clamps negative dt (D17), selftest off by default) | Abhijith | ☐ |
 | Offline EMG gesture detector prototype on recorded CSVs (Python) | Abhijith | ☐ |

@@ -5,7 +5,7 @@ Actuation mode: holding A = flexor active (close), holding D = extensor active (
 
 Mirrors the real EMG rules: one press emits at most one event (no auto-repeat), a gesture started while
 another gesture key is still held is ambiguous and becomes INVALID, and A + D together is co-contraction
-(INVALID activity). Needs real key-up events, so it is driven by a GUI (see cavia.fsm.sim), not a terminal.
+(INVALID activity). Needs real key-up events, so it is driven by a GUI (see keyboard_sim.fsm.sim), not a terminal.
 """
 
 from __future__ import annotations

@@ -5,12 +5,13 @@ Laptop-side software for MyoGrip CAVIA (Context-Aware Visual Intent Arbitration)
 | Package | Status | Contents |
 |---|---|---|
 | `core/` | ✅ | Message contracts, grip library, config, event bus |
-| `fsm/` | ✅ | Python reference FSM (mirror of the firmware FSM) + simulator window |
-| `emg/` | ◐ | WASDE keyboard EMG emulator (gesture detector and CSV replay to come) |
 | `vision/` | ◐ | Camera source, YOLO detection, reticle, regions, tracker (standalone script; packaging pending) |
-| `arbitration/`, `runtime/`, `eval/` | ☐ | Planned, see [`docs/architecture.md`](../../docs/architecture.md) |
+| `arbitration/` | ◐ | Candidate grips, preference store, adaptive menu policy, engine |
+| `runtime/` | ◐ | Live launcher: vision + keyboard simulator (`python -m cavia --user 1`) |
+| `eval/` | ☐ | Planned, see [`docs/architecture.md`](../../docs/architecture.md) |
 
-The web dashboard is maintained separately in [`src/dashboard/`](../dashboard/README.md).
+The keyboard simulator (reference FSM + WASDE keyboard EMG) lives in [`src/keyboard_sim/`](../keyboard_sim/),
+and the web dashboard in [`src/dashboard/`](../dashboard/README.md).
 
 ## Setup
 
@@ -32,9 +33,9 @@ pip install -e ".[vision,dev]"     # add camera + YOLO stack (heavy)
 
 ```bash
 pytest
-python -m cavia.fsm.sim --menu LATERAL,PINCH
-python -m cavia.fsm.sim --menu LATERAL --policy ONE_CONFIRM
-python -m cavia.fsm.sim --menu POWER,PINCH,TRIPOD,LATERAL --policy FULL_MENU   # manual cycling
+python -m keyboard_sim.fsm.sim --menu LATERAL,PINCH
+python -m keyboard_sim.fsm.sim --menu LATERAL --policy ONE_CONFIRM
+python -m keyboard_sim.fsm.sim --menu POWER,PINCH,TRIPOD,LATERAL --policy FULL_MENU   # manual cycling
 ```
 
 Opens a window showing the vertical menu, FSM state, grip progress bar, held keys and an event log.

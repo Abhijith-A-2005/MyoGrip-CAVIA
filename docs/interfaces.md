@@ -231,5 +231,5 @@ Browser → server:
 ```
 
 `key` messages carry real key-down/up for `w a s d e` only (keyboard EMG mode); the backend applies the
-same rules as `cavia.emg.keyboard.KeyboardEmg`. Control actions become `trial_start` / `trial_end` /
+same rules as `keyboard_sim.emg.keyboard.KeyboardEmg`. Control actions become `trial_start` / `trial_end` /
 `session_start` records in the session log (§6).

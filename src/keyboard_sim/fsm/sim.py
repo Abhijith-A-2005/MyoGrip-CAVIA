@@ -1,6 +1,6 @@
 """Interactive FSM simulator: mock CAVIA menu + keyboard EMG, no hardware.
 
-    python -m cavia.fsm.sim --menu LATERAL,PINCH
+    python -m keyboard_sim.fsm.sim --menu LATERAL,PINCH
 
 Opens a window (needs real key press/release events). Install with: pip install -e ".[sim]"
 """

@@ -29,7 +29,7 @@ Status tags: **CONFIRMED** = agreed and frozen · **ASSUMPTION** = working value
 - Physical servo-power E-stop sits outside all software.
 
 **Development path (CONFIRMED):** every embedded component is first prototyped in Python on the laptop
-(`cavia.fsm`, `cavia.emg`), verified against the same test vectors, then ported to C.
+(`keyboard_sim.fsm`, `keyboard_sim.emg`), verified against the same test vectors, then ported to C.
 A **keyboard EMG emulator** and **CSV replay** stand in for real EMG until the device path works,
 so CAVIA, the dashboard and the evaluation pipeline never wait on hardware.
 
