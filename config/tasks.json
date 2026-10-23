@@ -1,0 +1,10 @@
+{
+  "tasks": [
+    {"id": "T1", "object": "cup", "region": "handle", "target_grip": "LATERAL"},
+    {"id": "T2", "object": "cup", "region": "body", "target_grip": "POWER"},
+    {"id": "T3", "object": "bottle", "region": "cap", "target_grip": "TRIPOD"},
+    {"id": "T4", "object": "bottle", "region": "body", "target_grip": "POWER"},
+    {"id": "T5", "object": "cell phone", "region": "side_edge", "target_grip": "PINCH"},
+    {"id": "T6", "object": "toothbrush", "region": "handle", "target_grip": "TRIPOD"}
+  ]
+}

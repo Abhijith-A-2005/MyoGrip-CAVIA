@@ -17,6 +17,7 @@ from .history import read_history
 from .hub import Hub
 from .live_runtime import DashboardRuntime
 from .session import Session
+from .tasks import DEFAULT_TASKS, load_tasks
 from .vision_feed import ReplayVision, VisionFeed
 
 
@@ -101,6 +102,13 @@ def main(argv=None):
         default=Path("data/arbitration/sessions"),
     )
 
+    parser.add_argument(
+        "--tasks",
+        type=Path,
+        default=DEFAULT_TASKS,
+        help="trial task list (JSON); without the file, trials have no task",
+    )
+
     parser.add_argument("--result-timeout", type=float, default=2.0)
     parser.add_argument("--no-browser", action="store_true")
 
@@ -108,6 +116,15 @@ def main(argv=None):
 
     if not args.user.strip():
         parser.error("--user must not be empty")
+
+    tasks = []
+    if args.tasks.is_file():
+        try:
+            tasks = load_tasks(args.tasks)
+        except (OSError, ValueError) as error:
+            parser.error(f"--tasks {args.tasks}: {error}")
+    elif args.tasks != DEFAULT_TASKS:
+        parser.error(f"--tasks {args.tasks}: no such file")
 
     if not (args.dist / "index.html").is_file():
         parser.error(
@@ -189,6 +206,7 @@ def main(argv=None):
             audit=lambda event, **data: runtime.audit(event, **data),
             participant=args.user,
             condition=Condition.C3_ADAPTIVE,
+            tasks=tasks,
         )
 
         runtime = DashboardRuntime(

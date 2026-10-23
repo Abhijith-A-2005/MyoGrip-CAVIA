@@ -247,3 +247,17 @@ def test_switching_user_in_a_menu_clears_it_but_not_after_confirmation(rt):
     step(rt)
     assert rt.app.user == "P02"
     assert "before confirming" in hub.last("notice")["message"]
+
+
+def test_log_records_mark_the_rest_window(rt):
+    rt.control({"action": "start_rest"})
+    step(rt)
+    press(rt, "s")                                            # a gesture during rest: a false activation
+    rt.control({"action": "end_rest"})
+    step(rt)
+    records = [json.loads(line) for line in rt.test["log"].getvalue().splitlines()]
+    start = next(r for r in records if r["type"] == "rest_start")
+    key = next(r for r in records if r["type"] == "key_down")
+    end = next(r for r in records if r["type"] == "rest_end")
+    assert start["rest"] == 1 and key["rest"] == 1 and end["rest"] is None
+    assert end["data"]["rest"] == 1 and end["data"]["duration_s"] >= 0

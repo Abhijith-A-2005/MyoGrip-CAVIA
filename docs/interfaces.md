@@ -97,16 +97,22 @@ Published on every state change and at ≥10 Hz during actuation.
 
 ## 6. Log record (everything → JSONL)
 
-One file per session: `data/sessions/<session_id>.jsonl`. One record per line:
+One file per session: `data/arbitration/sessions/<session_id>.jsonl`. One record per line:
 
 ```json
-{"wall": 1760864400.12, "ts": 1235.010, "session": "S2026-10-20-P01", "user": "P01",
- "condition": "C3_ADAPTIVE", "trial": 12, "type": "menu", "data": { ...MenuProposal... }}
+{"wall": 1760864400.12, "ts": 1235.010, "session": "20261020-141500-ab12cd34", "user": "P01",
+ "condition": "C3_ADAPTIVE", "trial": 12, "rest": null, "type": "menu", "data": { ...MenuProposal... }}
 ```
 
-`type ∈ {session_start, trial_start, vision, menu, emg, fsm, preference_update, trial_end, note}`.
-`trial_start.data` holds `{"object", "region", "target_grip"}` (the instructed task);
-`trial_end.data` holds `{"grasp_success": bool, "notes": str}` (experimenter-marked).
+`trial` is the running trial's number and `rest` the running rest window's number, otherwise `null`.
+
+`type ∈ {session_start, trial_start, vision, menu, emg, fsm, preference_update, trial_end, rest_start,
+rest_end, note}` (the live runtime adds more, e.g. `key_down`, `confirmed`, `state`).
+`trial_start.data` holds `{"trial", "task_id", "object", "region", "target_grip", "practice"}` (the
+instructed task; the four task fields are `null` for a free trial without a task);
+`trial_end.data` holds `{"trial", "grasp_success": bool, "notes": str}` (experimenter-marked).
+`rest_start.data` holds `{"rest"}` and `rest_end.data` `{"rest", "duration_s"}`: an instructed rest with
+the hand relaxed, for counting false activations. A rest never overlaps a trial.
 
 Vision records may be decimated to state changes only to keep logs small.
 
@@ -230,7 +236,8 @@ then incremental messages.
 | `fsm` | `FsmStatus` (§5) **plus** `returning: bool` (HE controlled opening in progress) | every change, ≥10 Hz in actuation |
 | `emg` | `EmgInput` (§4) | each discrete event and each activity change |
 | `system` | `{camera: {status, source, fps, latency_ms}, vision: {status, model}, hand_link: {status, battery_pct}, emg_source}` | about 1 Hz |
-| `session` | `{participant, condition, trial, trial_active}` | on change |
+| `session` | `{participant, condition, trial, trial_active, task, practice, rest, rest_active}` | on change |
+| `tasks` | `{tasks: [{id, object, region, target_grip}]}` | on connect |
 | `users` | `{current, users: [{user, created_at, selections, accepted, last_used}]}` | on connect, add, switch, and after each learned selection |
 | `notice` | `{action, ok: false, message}` | a control was rejected (not kept in the snapshot) |
 
@@ -244,8 +251,10 @@ Browser → server:
 
 ```json
 {"type": "key", "data": {"key": "a", "down": true}}
-{"type": "control", "data": {"action": "start_trial"}}
+{"type": "control", "data": {"action": "start_trial", "task_id": "T1", "practice": false}}
 {"type": "control", "data": {"action": "end_trial", "grasp_success": true, "notes": ""}}
+{"type": "control", "data": {"action": "start_rest"}}
+{"type": "control", "data": {"action": "end_rest"}}
 {"type": "control", "data": {"action": "set_session", "participant": "P02", "condition": "C2_STATIC"}}
 {"type": "control", "data": {"action": "add_user", "user": "P07"}}
 ```
@@ -264,6 +273,12 @@ Users are preference profiles. A participant ID is upper case: letters, digits, 
 characters. `users` lists registered profiles (`add_user`, the startup user, and any user switched to with
 `set_session`) plus every user found in the selection history, oldest first.
 `add_user` registers a profile without switching to it and is rejected for an existing ID.
+
+Tasks come from `config/tasks.json` (or `--tasks PATH`): `{"tasks": [{"id", "object", "region",
+"target_grip"}]}`. Each task must name a known object region (`cavia.arbitration.candidates`) and a
+calibrated grip. `start_trial` takes an optional `task_id` (omitted or null: a free trial) and `practice`;
+`session.task` is the running trial's task. `start_rest` / `end_rest` open and close a rest window; a trial
+cannot start during a rest, a rest cannot start during a trial, and the session cannot change during either.
 
 `GET /api/history?user=<id>` reads the preference database through its own read-only connection:
 

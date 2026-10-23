@@ -51,14 +51,16 @@ def test_drawer_controls_update_session_and_audit():
         ws.receive_json()
         ws.send_json({"type": "control", "data": {"action": "set_session", "participant": "p02",
                                                    "condition": "C2_STATIC"}})
-        assert ws.receive_json()["data"] == {"participant": "P02", "condition": "C2_STATIC",
-                                             "trial": 0, "trial_active": False}
+        assert ws.receive_json()["data"] == {"participant": "P02", "condition": "C2_STATIC", "trial": 0,
+                                             "trial_active": False, "task": None, "practice": False,
+                                             "rest": 0, "rest_active": False}
         ws.send_json({"type": "control", "data": {"action": "start_trial"}})
         assert ws.receive_json()["data"]["trial_active"] is True
         ws.send_json({"type": "control", "data": {"action": "end_trial", "grasp_success": True,
                                                    "notes": "clean grasp"}})
-        assert ws.receive_json()["data"] == {"participant": "P02", "condition": "C2_STATIC",
-                                             "trial": 1, "trial_active": False}
+        assert ws.receive_json()["data"] == {"participant": "P02", "condition": "C2_STATIC", "trial": 1,
+                                             "trial_active": False, "task": None, "practice": False,
+                                             "rest": 0, "rest_active": False}
     assert [e for e, _ in audit] == ["session_start", "trial_start", "trial_end"]
     assert audit[-1][1] == {"trial": 1, "grasp_success": True, "notes": "clean grasp"}
 
