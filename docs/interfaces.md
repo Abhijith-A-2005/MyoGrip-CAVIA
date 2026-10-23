@@ -280,3 +280,15 @@ characters. `users` lists registered profiles (`add_user`, the startup user, and
 `selections` are newest first; `time` is Unix seconds. `menu` is `adaptive` or `full`; `rank` is the grip's
 1-based position in the Adaptive Menu (null when chosen from the Full Menu). `preferences` counts
 accepted, compatible, non-instructed selections per object and region: the counts that rank the menu.
+
+### Dashboard camera delivery
+
+The default dashboard launcher uses an in-process camera service.
+Preview JPEGs and inference results occupy separate latest-value slots.
+
+The existing `/video` endpoint serves the preview. Vision results continue
+through the existing VisionFeed and DashboardRuntime.
+
+The vision health status may be `paused`. This means inference was
+intentionally paused after grip confirmation. Camera preview continues
+until shutdown. Returning to HOME starts a fresh detection generation.

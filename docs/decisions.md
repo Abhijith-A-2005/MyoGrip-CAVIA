@@ -27,6 +27,17 @@ Newest first. A later entry overrides anything earlier, in this file or any othe
 | D2 | earlier | No FSR, EEG/ErrP, EOG or ECG in the MVP | Scope and feasibility |
 | D1 | earlier | Camera = XIAO ESP32-S3 Sense (OV2640); servo driver = PCA9685; 5 × MG996R-class servos | Hardware checkpoint |
 
+### Integrated dashboard launch
+
+The default command is `python -m cavia --user ID`.
+
+The dashboard server owns the camera and runs preview encoding and vision
+inference in separate workers. Confirmation pauses inference until HOME,
+while the camera preview continues.
+
+The previous keyboard window remains available through
+`python -m cavia.runtime.live --user ID`.
+
 ## Open questions
 
 | # | Question | Owner | Needed by |

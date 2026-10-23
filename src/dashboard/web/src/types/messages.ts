@@ -10,7 +10,7 @@ export type EmgEvent = "SF" | "SE" | "LF" | "LE" | "HE" | "REST" | "INVALID";
 export type Activity = "REST" | "FLEX_ACTIVE" | "EXT_ACTIVE" | "INVALID";
 export type HealthStatus =
   | "live" | "ok" | "connected"
-  | "degraded"
+  | "degraded" | "paused"
   | "stale" | "down" | "disconnected";
 
 /** [x1, y1, x2, y2], normalised 0..1 in frame coordinates. */

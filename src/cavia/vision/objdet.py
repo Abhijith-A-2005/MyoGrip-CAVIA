@@ -5,7 +5,14 @@ import time
 import numpy as np
 from camera_source import CameraSettings, CameraSource
 from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
-from regions import get_targeted_region, normalize_rect, region_rect
+from regions import normalize_rect
+from detection import (
+    TARGET_CLASSES,
+    REGION_DISPLAY_CONF_THRESHOLD,
+    clamp_box,
+    reticle_overlaps_box,
+    select_candidate,
+)
 from cavia.runtime.vision_link import DetectionControl, frame_wanted, publish_frame, publish_result
 
 # Camera window title
@@ -38,27 +45,12 @@ STATE_COLORS = {
 
 model = YOLO("yolo26n.pt")    # pretrained on COCO
 
-# controlled object set, mapped to COCO class names
-TARGET_CLASSES = {"cup", "bottle", "cell phone", "remote", "toothbrush", "spoon", "book"}
-REGION_DISPLAY_CONF_THRESHOLD = 0.5
-
 COLOR_TARGETED = (0, 255, 0)      # green
 COLOR_NOT_TARGETED = (0, 165, 255)  # orange
 
 # .env lives beside camera_source.py; mode changes via L / X / A are runtime-only.
 camera_settings = CameraSettings.from_env()
 MAX_FRAME_AGE = camera_settings.max_frame_age
-
-
-def clamp_box(box, frame_shape):
-    """keep box coordinates inside the frame (fix 5)."""
-    h, w = frame_shape[:2]
-    x1, y1, x2, y2 = box
-    x1 = max(0, min(x1, w - 1))
-    x2 = max(0, min(x2, w - 1))
-    y1 = max(0, min(y1, h - 1))
-    y2 = max(0, min(y2, h - 1))
-    return x1, y1, x2, y2
 
 
 def normalize_angle(rect):
@@ -102,12 +94,6 @@ def draw_reticle(frame):
     cv2.line(frame, (cx - size, cy), (cx + size, cy), color, 2)
     cv2.line(frame, (cx, cy - size), (cx, cy + size), color, 2)
     return cx, cy
-
-
-def reticle_overlaps_box(reticle_point, box):
-    cx, cy = reticle_point
-    x1, y1, x2, y2 = box
-    return x1 <= cx <= x2 and y1 <= cy <= y2
 
 tracker = RegionTracker()
 last_sent = None
@@ -281,8 +267,12 @@ try:
         if detection_control.snapshot() != (False, generation):
             continue
 
-        candidate = None      # reset every frame
-        best_area = None
+        candidate = select_candidate(
+            results.boxes,
+            model.names,
+            frame.shape,
+            reticle_point,
+        )
 
         for box in results.boxes:
             cls_name = model.names[int(box.cls[0])]
@@ -309,20 +299,6 @@ try:
                 cv2.putText(display_frame, f"{orientation:.0f} deg", (x1, max(y1 - 30, 30)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
-            if targeted:
-                area = (x2 - x1) * (y2 - y1)
-                if best_area is None or area < best_area:
-                    region, margin = get_targeted_region(cls_name, (x1, y1, x2, y2), reticle_point)
-                    if region:
-                        best_area = area
-                        candidate = {
-                            "object": cls_name,
-                            "region": region,
-                            "det_conf": conf,
-                            "reticle_score": min(1.0, margin / 0.25),
-                            "box": (x1, y1, x2, y2),
-                            "region_box": region_rect(cls_name, (x1, y1, x2, y2), region, reticle_point),
-                        }
 
         # Suppress a result if this frame expired or the camera reconnected
         # while YOLO was running. This does not change region/lock algorithms.

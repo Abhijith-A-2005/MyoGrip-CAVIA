@@ -10,6 +10,7 @@ type Tone = "good" | "warn" | "bad" | "idle";
 const tone = (s: HealthStatus | undefined): Tone => {
   if (!s) return "idle";
   if (s === "live" || s === "ok" || s === "connected") return "good";
+  if (s === "paused") return "idle";
   if (s === "degraded") return "warn";
   return "bad";
 };
