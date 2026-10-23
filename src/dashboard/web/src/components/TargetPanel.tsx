@@ -56,6 +56,7 @@ export function TargetPanel() {
       <p className="target-caption">Target</p>
 
       <div className="target-main">
+        <ConfidenceRing value={v?.region_confidence ?? 0} active={active} />
         <div className="target-names">
           <h2 className="target-object" data-empty={!active || undefined}>{active ? objectLabel(v.object) : "Nothing in view"}</h2>
           <p className="target-region">{active && v.region ? regionLabel(v.region) : " "}</p>
@@ -64,7 +65,6 @@ export function TargetPanel() {
             {active && v.object && STAND_IN[v.object] ? `, ${STAND_IN[v.object]}` : ""}
           </p>
         </div>
-        <ConfidenceRing value={v?.region_confidence ?? 0} active={active} />
       </div>
     </section>
   );

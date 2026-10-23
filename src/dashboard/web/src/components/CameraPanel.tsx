@@ -8,6 +8,13 @@ import "./CameraPanel.css";
 // Overlay coordinates: a 4:3 viewBox matching the camera frame.
 const VW = 1000;
 const VH = 750;
+// The viewfinder is wider than the frame (16:9, see CameraPanel.css); the frame fills its width and is
+// centred, so a strip at the top and bottom is cut off. Corners are drawn on the viewfinder itself.
+const CW = 1000;
+const CH = 562.5;
+// Labels sit above the object box and below the region box; keep both inside the visible band (% of frame height).
+const TAG_MIN_TOP = 19;
+const TAG_MAX_TOP = 81;
 
 const LOCK_TEXT: Record<VisionState, string> = {
   NO_OBJECT: "No object",
@@ -51,49 +58,58 @@ export function CameraPanel({ focused }: { focused: boolean }) {
 
   return (
     <section className="cam" data-area="camera" data-focused={focused || undefined} aria-label="Wrist camera">
-      {!stale && !offline && (
-        <img
-          key={frameKey}
-          className="cam-feed"
-          src={src}
-          alt=""
-          data-hidden={!videoOk || undefined}
-          onLoad={() => setVideoOk(true)}
-          onError={() => setVideoOk(false)}
-        />
-      )}
+      {/* The 4:3 camera frame: picture, detection overlays and tags share its coordinates. */}
+      <div className="cam-frame">
+        {!stale && !offline && (
+          <img
+            key={frameKey}
+            className="cam-feed"
+            src={src}
+            alt=""
+            data-hidden={!videoOk || undefined}
+            onLoad={() => setVideoOk(true)}
+            onError={() => setVideoOk(false)}
+          />
+        )}
+        <div className="cam-vignette" />
+
+        <svg className="cam-overlay" viewBox={`0 0 ${VW} ${VH}`} aria-hidden>
+          {box && !stale && !offline && (
+            <g className="cam-object" data-locked={locked || undefined}>
+              <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={14} />
+            </g>
+          )}
+          {region && !stale && !offline && (
+            <g className="cam-region" data-locked={locked || undefined}>
+              <rect x={region.x} y={region.y} width={region.w} height={region.h} rx={10} />
+            </g>
+          )}
+          {!stale && !offline && <Reticle locked={locked} />}
+        </svg>
+
+        {box && vision?.object && !stale && !offline && (
+          <span className="cam-tag cam-tag-object" style={{ left: `${(box.x / VW) * 100}%`, top: `${Math.max(TAG_MIN_TOP, (box.y / VH) * 100)}%` }}>
+            {objectLabel(vision.object)} <span className="num">{Math.round(vision.det_conf * 100)}%</span>
+          </span>
+        )}
+        {region && vision?.region && !stale && !offline && (
+          <span
+            className="cam-tag cam-tag-region"
+            data-locked={locked || undefined}
+            style={{
+              left: `${((region.x + region.w) / VW) * 100}%`,
+              top: `${Math.min(TAG_MAX_TOP, ((region.y + region.h) / VH) * 100)}%`,
+            }}
+          >
+            {regionLabel(vision.region)}
+          </span>
+        )}
+      </div>
+
       {!videoOk && !stale && !offline && <p className="cam-novideo">Video not available yet</p>}
-      <div className="cam-vignette" />
-
-      <svg className="cam-overlay" viewBox={`0 0 ${VW} ${VH}`} aria-hidden>
+      <svg className="cam-overlay" viewBox={`0 0 ${CW} ${CH}`} aria-hidden>
         <FrameCorners />
-        {box && !stale && !offline && (
-          <g className="cam-object" data-locked={locked || undefined}>
-            <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={14} />
-          </g>
-        )}
-        {region && !stale && !offline && (
-          <g className="cam-region" data-locked={locked || undefined}>
-            <rect x={region.x} y={region.y} width={region.w} height={region.h} rx={10} />
-          </g>
-        )}
-        {!stale && !offline && <Reticle locked={locked} />}
       </svg>
-
-      {box && vision?.object && !stale && !offline && (
-        <span className="cam-tag cam-tag-object" style={{ left: `${(box.x / VW) * 100}%`, top: `${(box.y / VH) * 100}%` }}>
-          {objectLabel(vision.object)} <span className="num">{Math.round(vision.det_conf * 100)}%</span>
-        </span>
-      )}
-      {region && vision?.region && !stale && !offline && (
-        <span
-          className="cam-tag cam-tag-region"
-          data-locked={locked || undefined}
-          style={{ left: `${((region.x + region.w) / VW) * 100}%`, top: `${((region.y + region.h) / VH) * 100}%` }}
-        >
-          {regionLabel(vision.region)}
-        </span>
-      )}
 
       <div className="cam-hud cam-hud-top">
         <span className="cam-lock" data-state={state}>
@@ -132,9 +148,9 @@ function FrameCorners() {
   return (
     <g className="cam-corners">
       <path d={`M${m} ${m + L}V${m}H${m + L}`} />
-      <path d={`M${VW - m - L} ${m}H${VW - m}V${m + L}`} />
-      <path d={`M${VW - m} ${VH - m - L}V${VH - m}H${VW - m - L}`} />
-      <path d={`M${m + L} ${VH - m}H${m}V${VH - m - L}`} />
+      <path d={`M${CW - m - L} ${m}H${CW - m}V${m + L}`} />
+      <path d={`M${CW - m} ${CH - m - L}V${CH - m}H${CW - m - L}`} />
+      <path d={`M${m + L} ${CH - m}H${m}V${CH - m - L}`} />
     </g>
   );
 }

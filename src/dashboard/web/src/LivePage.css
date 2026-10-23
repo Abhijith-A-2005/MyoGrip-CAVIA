@@ -16,8 +16,8 @@
 
 .live-top {
   display: grid;
-  /* Camera column is sized by the 4:3 feed; Target and Hand share the rest. */
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.15fr);
+  /* Camera column is sized by the 16:9 viewfinder; Target is a narrow column; Hand takes the rest. */
+  grid-template-columns: auto 300px minmax(0, 1fr);
   gap: 28px;
   min-height: 0;
 }

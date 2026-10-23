@@ -1,8 +1,8 @@
-/* The viewfinder is the image itself: a 4:3 frame, no card around it. */
+/* The viewfinder is the image itself, no card around it: 16:9, wider than the 4:3 camera frame. */
 .cam {
   position: relative;
   height: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: var(--r-frame);
   background: #000;
@@ -14,6 +14,16 @@
   box-shadow:
     0 0 0 1px var(--forest),
     0 0 40px rgb(3 230 3 / 0.18);
+}
+
+/* The 4:3 frame fills the viewfinder's width, centred vertically (top and bottom strips are cut off). */
+.cam-frame {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  transform: translateY(-50%);
 }
 
 .cam-feed {
@@ -39,9 +49,10 @@
   color: var(--moss);
 }
 
+/* Inside the frame, limited to the visible band (the frame's top and bottom 12.5% are cut off). */
 .cam-vignette {
   position: absolute;
-  inset: 0;
+  inset: 12.5% 0;
   background:
     radial-gradient(120% 90% at 50% 45%, transparent 55%, rgb(1 3 0 / 0.65) 100%),
     linear-gradient(180deg, rgb(1 3 0 / 0.5) 0%, transparent 18%, transparent 80%, rgb(1 3 0 / 0.6) 100%);
