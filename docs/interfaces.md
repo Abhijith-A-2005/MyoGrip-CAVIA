@@ -255,3 +255,15 @@ The server drives `LiveSimApp` (§8) on one runtime thread: `menu` is the contro
 real key press (the controller's own internal calls are not reported). `set_session` is accepted only at
 CAVIA Home with all keys released and only for `C3_ADAPTIVE`; the participant ID selects the preference
 profile. Rejected controls are logged as `control_rejected`.
+
+### Dashboard camera delivery
+
+The default dashboard launcher uses an in-process camera service.
+Preview JPEGs and inference results occupy separate latest-value slots.
+
+The existing `/video` endpoint serves the preview. Vision results continue
+through the existing VisionFeed and DashboardRuntime.
+
+The vision health status may be `paused`. This means inference was
+intentionally paused after grip confirmation. Camera preview continues
+until shutdown. Returning to HOME starts a fresh detection generation.

@@ -27,6 +27,9 @@ export function CameraPanel({ focused }: { focused: boolean }) {
   const vision = useDashboard((s) => s.vision);
   const camera = useDashboard((s) => s.system?.camera);
   const link = useDashboard((s) => s.link);
+  const paused = useDashboard(
+    (s) => s.system?.vision.status === "paused"
+  );
   const [frameKey, setFrameKey] = useState(0);
   const [videoOk, setVideoOk] = useState(true);
   const src = videoUrl();
@@ -37,8 +40,13 @@ export function CameraPanel({ focused }: { focused: boolean }) {
   const noCamera = camera?.status === "down";
   const state = vision?.state ?? "NO_OBJECT";
   const locked = state === "LOCKED";
-  const box = vision?.box ? toRect(vision.box) : null;
-  const region = vision?.region_box ? toRect(vision.region_box) : null;
+  const box = !paused && videoOk && vision?.box
+    ? toRect(vision.box)
+    : null;
+
+  const region = !paused && videoOk && vision?.region_box
+    ? toRect(vision.region_box)
+    : null;
 
   // MJPEG streams end on network errors. Retry every 2 s (never in a tight loop) while the video
   // is failing or the camera is stale, instead of showing a broken frame.
@@ -77,7 +85,9 @@ export function CameraPanel({ focused }: { focused: boolean }) {
             <rect x={region.x} y={region.y} width={region.w} height={region.h} rx={10} />
           </g>
         )}
-        {!stale && !offline && <Reticle locked={locked} />}
+        {!stale && !offline && !paused && videoOk && (
+          <Reticle locked={locked} />
+        )}
       </svg>
 
       {box && vision?.object && !stale && !offline && (
@@ -98,7 +108,7 @@ export function CameraPanel({ focused }: { focused: boolean }) {
       <div className="cam-hud cam-hud-top">
         <span className="cam-lock" data-state={state}>
           <span className="cam-lock-dot" />
-          {LOCK_TEXT[state]}
+          {paused ? "Detection paused until HOME" : LOCK_TEXT[state]}
         </span>
         {camera && !stale && !offline && (
           <span className="cam-stats num">
