@@ -1,8 +1,8 @@
-/* 1920x1080 stage: header 72 + two 416px rows + ribbon 88, 16px gaps, 20/24px padding. */
+/* 1920x1080 stage: header 72 + camera row 492 + menu row 340 + ribbon 88, 16px gaps, 20/24px padding. */
 .live {
   position: relative;
   display: grid;
-  grid-template-rows: 72px 1fr 1fr 88px;
+  grid-template-rows: 72px 492px 1fr 88px;
   gap: var(--s-4);
   height: 100%;
   padding: 20px var(--s-5);

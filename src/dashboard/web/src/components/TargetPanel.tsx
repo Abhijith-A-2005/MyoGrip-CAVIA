@@ -39,19 +39,6 @@ function ConfidenceRing({ value, active }: { value: number; active: boolean }) {
   );
 }
 
-function Evidence({ label, value, active }: { label: string; value: number; active: boolean }) {
-  const pct = active ? Math.round(value * 100) : 0;
-  return (
-    <div className="ev">
-      <span className="ev-label">{label}</span>
-      <span className="ev-track">
-        <span className="ev-fill" style={{ transform: `scaleX(${pct / 100})` }} />
-      </span>
-      <span className="ev-value num">{active ? `${pct}%` : ""}</span>
-    </div>
-  );
-}
-
 const TRACK_TEXT = {
   NO_OBJECT: "Point the wrist camera at an object",
   SEARCHING: "Holding the reticle steady",
@@ -78,12 +65,6 @@ export function TargetPanel() {
           </p>
         </div>
         <ConfidenceRing value={v?.region_confidence ?? 0} active={active} />
-      </div>
-
-      <div className="target-evidence">
-        <Evidence label="Detection" value={v?.det_conf ?? 0} active={active} />
-        <Evidence label="On target" value={v?.reticle_score ?? 0} active={active} />
-        <Evidence label="Stability" value={v?.stability ?? 0} active={active} />
       </div>
     </section>
   );
