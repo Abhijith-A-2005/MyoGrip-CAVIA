@@ -282,6 +282,8 @@ def test_actual_objdet_loop_skips_inference_while_paused_and_rejects_old_work(
             closed.append(True)
 
     class Model:
+        names = {}
+
         def __init__(self, weights):
             pass
 
