@@ -4,7 +4,7 @@
 
 import type {
   Activity, Box, ClientMessage, Condition, GestureKey, Grip, HistoryMsg, HistorySelection, MenuMsg, MenuPolicy,
-  ServerMessage, SessionMsg, SystemMsg, UserInfo, UsersMsg, VisionMsg,
+  ServerMessage, SessionMsg, SystemMsg, TaskInfo, UserInfo, UsersMsg, VisionMsg,
 } from "../types/messages";
 import { KeyboardEmg, MockFsm } from "./mockFsm";
 import type { Transport } from "./ws";
@@ -60,6 +60,16 @@ const SCENARIO_FOR: Record<Condition, (current: Scenario) => Scenario> = {
 };
 
 const GESTURE_KEYS = new Set(["w", "a", "s", "d", "e"]);
+/** Same list as config/tasks.json. */
+const MOCK_TASKS: TaskInfo[] = [
+  { id: "T1", object: "cup", region: "handle", target_grip: "LATERAL" },
+  { id: "T2", object: "cup", region: "body", target_grip: "POWER" },
+  { id: "T3", object: "bottle", region: "cap", target_grip: "TRIPOD" },
+  { id: "T4", object: "bottle", region: "body", target_grip: "POWER" },
+  { id: "T5", object: "cell phone", region: "side_edge", target_grip: "PINCH" },
+  { id: "T6", object: "toothbrush", region: "handle", target_grip: "TRIPOD" },
+];
+
 /** Same rule as cavia.server.session.participant_id. */
 const PARTICIPANT_ID = /^[A-Z0-9][A-Z0-9_-]{0,23}$/;
 
@@ -170,6 +180,10 @@ export function startMock(params: URLSearchParams): Transport {
 
   let menuId = 0;
   let trial = 0;
+  let task: TaskInfo | null = null;
+  let practice = false;
+  let rest = 0;
+  let restActive = false;
   let searchStart = 0;
   let lastTick = now();
   let lastSystem = -1;
@@ -177,7 +191,9 @@ export function startMock(params: URLSearchParams): Transport {
   let frameSeq = 0;
   let lastFsmKey = "";
 
-  const session = (): SessionMsg => ({ participant, condition: scenario.condition, trial, trial_active: trialActive });
+  const session = (): SessionMsg => ({
+    participant, condition: scenario.condition, trial, trial_active: trialActive, task, practice, rest, rest_active: restActive,
+  });
 
   const users = (): UsersMsg => ({ current: participant, users: userList.map((u) => ({ ...u })) });
 
@@ -299,6 +315,7 @@ export function startMock(params: URLSearchParams): Transport {
     type: "snapshot",
     data: {
       vision: vision(0), menu: null, fsm: fsm.status(0), system: system(0), session: session(), users: users(),
+      tasks: { tasks: MOCK_TASKS },
       emg_recent: [],
     },
   });
@@ -324,10 +341,27 @@ export function startMock(params: URLSearchParams): Transport {
       } else {
         const c = msg.data;
         if (c.action === "start_trial") {
+          if (trialActive) return reject(c.action, "A trial is already running");
+          if (restActive) return reject(c.action, "End the rest window before starting a trial");
+          const picked = c.task_id == null ? null : MOCK_TASKS.find((t) => t.id === c.task_id);
+          if (picked === undefined) return reject(c.action, `Unknown task: ${c.task_id}`);
           trial += 1;
           trialActive = true;
+          task = picked;
+          practice = c.practice;
         } else if (c.action === "end_trial") {
+          if (!trialActive) return reject(c.action, "No trial is running");
           trialActive = false;
+          task = null;
+          practice = false;
+        } else if (c.action === "start_rest") {
+          if (trialActive) return reject(c.action, "End the trial before starting a rest window");
+          if (restActive) return reject(c.action, "A rest window is already running");
+          rest += 1;
+          restActive = true;
+        } else if (c.action === "end_rest") {
+          if (!restActive) return reject(c.action, "No rest window is running");
+          restActive = false;
         } else if (c.action === "add_user") {
           const user = c.user.trim().toUpperCase();
           if (!PARTICIPANT_ID.test(user)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
@@ -337,7 +371,7 @@ export function startMock(params: URLSearchParams): Transport {
           return;
         } else {
           const next = c.participant.trim().toUpperCase();
-          if (trialActive) return reject(c.action, "End the current trial before changing the session");
+          if (trialActive || restActive) return reject(c.action, "End the current trial or rest before changing the session");
           if (!PARTICIPANT_ID.test(next)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
           if (next !== participant) {
             if (ACTUATION.includes(fsm.state) || keys.held.size > 0) {

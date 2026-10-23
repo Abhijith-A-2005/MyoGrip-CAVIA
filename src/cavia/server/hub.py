@@ -7,7 +7,7 @@ import threading
 from collections import deque
 from typing import Any
 
-STATE_KINDS = ("vision", "menu", "fsm", "system", "session", "users")
+STATE_KINDS = ("vision", "menu", "fsm", "system", "session", "users", "tasks")
 KINDS = frozenset((*STATE_KINDS, "emg", "notice"))   # emg and notice are events, not state
 
 EMG_KEEP = 40

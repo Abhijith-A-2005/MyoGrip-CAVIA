@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { EmgMsg, NoticeMsg, ServerMessage, Snapshot } from "../types/messages";
+import type { EmgMsg, NoticeMsg, ServerMessage, SessionMsg, Snapshot } from "../types/messages";
 
 export type Link = "connecting" | "open" | "reconnecting" | "mock";
 
@@ -19,6 +19,8 @@ export type DashboardState = Snapshot & {
   emg: EmgEntry[];
   /** Latest rejected control, with a counter so the same message twice still shows. */
   notice: (NoticeMsg & { seq: number }) | null;
+  /** performance.now() when this browser first saw the running rest window, so every timer agrees. */
+  restStartedAt: number | null;
 };
 
 const EMG_KEEP = 40;
@@ -30,7 +32,9 @@ let state: DashboardState = {
   system: null,
   session: null,
   users: null,
+  tasks: null,
   notice: null,
+  restStartedAt: null,
   emg_recent: [],
   emg: [],
   emgSeq: 0,
@@ -52,13 +56,20 @@ function pushEmg(list: EmgEntry[], msg: EmgMsg, seq: number) {
   return [...list, { ...msg, seq, at: performance.now(), moving }].slice(-EMG_KEEP);
 }
 
+function restStart(next: SessionMsg | null): number | null {
+  if (!next?.rest_active) return null;
+  return state.session?.rest_active && state.session.rest === next.rest && state.restStartedAt != null
+    ? state.restStartedAt
+    : performance.now();
+}
+
 export function applyMessage(msg: ServerMessage) {
   switch (msg.type) {
     case "snapshot": {
       let seq = state.emgSeq;
       let emg: EmgEntry[] = [];
       for (const e of msg.data.emg_recent) emg = pushEmg(emg, e, ++seq);
-      set({ users: null, ...msg.data, emg, emgSeq: seq });
+      set({ users: null, tasks: null, ...msg.data, emg, emgSeq: seq, restStartedAt: restStart(msg.data.session) });
       break;
     }
     case "emg":
@@ -77,7 +88,10 @@ export function applyMessage(msg: ServerMessage) {
       set({ system: msg.data });
       break;
     case "session":
-      set({ session: msg.data });
+      set({ session: msg.data, restStartedAt: restStart(msg.data) });
+      break;
+    case "tasks":
+      set({ tasks: msg.data });
       break;
     case "users":
       set({ users: msg.data });

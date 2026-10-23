@@ -62,6 +62,7 @@ first-option acceptance, incorrect selection) do not need the hand, so the study
 | Integration: camera picture to the dashboard (`/video` MJPEG from vision frames) | Adwaith | ☑ |
 | Integration: menus, FSM and EMG to the dashboard (`DashboardRuntime` around LiveSimApp) | Adwaith | ☑ |
 | Dashboard: user switcher with new users, History page, larger camera view (D22) | Adwaith | ☑ |
+| Drawer: trial task picker (target grip) and rest windows, logged for the metrics (D23) | Adwaith | ☑ |
 | Arbitration engine: Manual (C1) and Static (C2) conditions, so live mode can run all three | Abhijith, Adwaith | ☐ |
 | JSONL logger + metrics script on simulated sessions | Adwaith | ☐ |
 | Questionnaire forms (NASA-TLX, SUS, control/confidence Likert) | Meghna | ☐ |

@@ -105,3 +105,12 @@ export function ago(unix: number | null): string {
   const d = Math.floor(s / 86400);
   return d === 1 ? "yesterday" : `${d} days ago`;
 }
+
+/** Instructed rest length (evaluation brief, section 3.3). The experimenter ends the rest; this is the cue. */
+export const REST_TARGET_S = 60;
+
+/** "Mug handle" style task name. */
+export const taskLabel = (t: { object: string; region: string }) => `${objectLabel(t.object)} ${regionLabel(t.region).toLowerCase()}`;
+
+/** Seconds as m:ss. */
+export const clockText = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;

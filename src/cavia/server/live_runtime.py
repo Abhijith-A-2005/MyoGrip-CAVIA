@@ -89,6 +89,7 @@ class DashboardRuntime:
             "wall": time.time(), "ts": self.clock(), "session": self._log_name,
             "user": self.app.user if self.app is not None else s.participant,
             "condition": s.condition, "trial": s.trial if s.trial_active else None,
+            "rest": s.rest if s.rest_active else None,
             "type": event, "data": data,
         }
         self._log_file.write(json.dumps(record, default=str) + "\n")
