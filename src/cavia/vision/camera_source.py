@@ -8,7 +8,11 @@ import time
 
 import cv2
 
-from mjpeg_stream import LatestMJPEGStream
+# Support both package imports and the standalone vision script.
+if __package__:
+    from .mjpeg_stream import LatestMJPEGStream
+else:
+    from mjpeg_stream import LatestMJPEGStream
 
 
 @dataclass
