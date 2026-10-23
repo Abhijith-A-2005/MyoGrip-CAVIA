@@ -86,6 +86,22 @@ does not switch the live user. Mock mode shows sample histories for users `1` an
 Not yet in live mode: the Manual (C1) and Static (C2) conditions, which need support in the arbitration
 engine, and the real hand (the Hand status stays red; the FSM is simulated from the keys).
 
+## Trials and rest windows (experimenter drawer)
+
+Open the drawer with `` ` ``. Every action is written to the session log for the evaluation metrics.
+
+- **Trial:** pick a task (object region and target grip, e.g. *T3 Bottle cap, Tripod*), or **Free trial**
+  for no target. **Random task** picks a different one. Tick **Practice trial** to keep it out of the
+  analysis. **Start trial** logs `trial_start` with the task; the drawer and the header then show the
+  grip to ask for. End with **Grasp succeeded** / **Grasp failed** (`trial_end`).
+- **Rest window:** **Start rest** asks the participant to relax the hand, with no task, for 60 s. The drawer
+  and the header show a timer; **End rest** logs `rest_end` with the duration. Gestures logged during a
+  rest count as false activations. A rest never overlaps a trial.
+
+Tasks come from `config/tasks.json` at the repo root (`{"tasks": [{"id", "object", "region",
+"target_grip"}]}`); pass `--tasks PATH` for another list. Each task must name an object region CAVIA knows
+and a calibrated grip, or the server refuses to start. Without the file, only free trials are offered.
+
 ## Mock mode
 
 No backend needed: a scripted camera lock, the menus, and a TypeScript port of the reference FSM
@@ -101,6 +117,7 @@ No backend needed: a scripted camera lock, the menus, and a TypeScript port of t
 | `?script=3:s,3.5:a:1.5` | Press keys automatically: `time:key[:hold seconds]`, comma-separated. Good for a hands-free demo |
 
 The experimenter drawer's condition switch also changes the mock scenario (Manual, Static, Adaptive).
+Tasks and rest windows work the same as live, with the task list from `config/tasks.json`.
 
 ## Keys
 
