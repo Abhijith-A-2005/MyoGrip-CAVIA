@@ -66,6 +66,11 @@ class PreferenceStore:
 
             CREATE INDEX IF NOT EXISTS selection_context
                 ON selections(user, object, region, status);
+
+            CREATE TABLE IF NOT EXISTS users (
+                user TEXT PRIMARY KEY,
+                created_at REAL NOT NULL
+            );
         """)
 
     def close(self) -> None:
@@ -369,3 +374,52 @@ class PreferenceStore:
             dict(row)
             for row in self.connection.execute(query, params)
         ]
+
+    def add_user(self, user: str | int) -> str:
+        """Register a profile before it has any history. Idempotent."""
+
+        key = user_key(user)
+
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT OR IGNORE INTO users(user, created_at)
+                VALUES (?, ?)
+                """,
+                (key, time.time()),
+            )
+
+        return key
+
+    def users(self) -> list[dict[str, Any]]:
+        """Registered users plus any user found in the history, oldest first."""
+
+        rows = self.connection.execute(
+            """
+            WITH known AS (
+                SELECT user, created_at FROM users
+                UNION ALL
+                SELECT user, MIN(created_at) FROM selections GROUP BY user
+            )
+            SELECT
+                known.user AS user,
+                MIN(known.created_at) AS created_at,
+                (
+                    SELECT COUNT(*) FROM selections s
+                    WHERE s.user = known.user
+                ) AS selections,
+                (
+                    SELECT COUNT(*) FROM selections s
+                    WHERE s.user = known.user AND s.status = 'accepted'
+                ) AS accepted,
+                (
+                    SELECT MAX(updated_at) FROM selections s
+                    WHERE s.user = known.user
+                ) AS last_used
+            FROM known
+            GROUP BY known.user
+            ORDER BY MIN(known.created_at), known.user
+            """
+        )
+
+        return [dict(row) for row in rows]

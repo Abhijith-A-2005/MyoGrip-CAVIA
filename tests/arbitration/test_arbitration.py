@@ -31,6 +31,25 @@ class ArbitrationTests(unittest.TestCase):
             self.engine.finish(interaction, outcome)
         return interaction
 
+    def test_user_registry(self):
+        self.assertEqual(self.store.users(), [])
+        self.assertEqual(self.store.add_user(" P01 "), "P01")
+        self.store.add_user("P01")
+        self.learn(Grip.PINCH, user="2")
+        self.learn(Grip.LATERAL, user="2", outcome="cancelled")
+        self.learn(Grip.PINCH, user="P01")
+        users = {u["user"]: u for u in self.store.users()}
+        self.assertEqual(list(users), ["P01", "2"])
+        self.assertEqual((users["2"]["selections"], users["2"]["accepted"]), (2, 1))
+        self.assertEqual((users["P01"]["selections"], users["P01"]["accepted"]), (1, 1))
+        self.assertIsNotNone(users["2"]["last_used"])
+        self.store.add_user("3")
+        self.assertEqual(self.store.users()[-1], {"user": "3", "created_at": self.store.users()[-1]["created_at"],
+                                                  "selections": 0, "accepted": 0, "last_used": None})
+        for user in ["", "  ", True]:
+            with self.subTest(user=user), self.assertRaises(ValueError):
+                self.store.add_user(user)
+
     def test_input_normalization(self):
         r = ArbitrationInput(1, " MUG ", " side_EDGE ")
         self.assertEqual((r.user, r.object, r.region), ("1", "cup", "side_edge"))
