@@ -19,7 +19,7 @@ from typing import IO, Callable
 
 from cavia.arbitration.engine import ArbitrationEngine
 from cavia.arbitration.preferences import PreferenceStore
-from cavia.core.contracts import Activity, Condition, FsmState
+from cavia.core.contracts import Activity, Condition
 from cavia.runtime.controller import LiveSimApp
 from keyboard_sim.fsm.machine import ACTUATION_STATES
 
@@ -126,6 +126,7 @@ class DashboardRuntime:
 
         self.app.fsm.on_event = on_event
         self.audit("session_started", user=self.app.user, database=str(self.db))
+        self._store.add_user(self.app.user)
         self._publish_users()
         self._publish_state(force=True)
 
@@ -203,8 +204,8 @@ class DashboardRuntime:
             if data.get("action") == "set_session":
                 if data.get("condition") not in LIVE_CONDITIONS:
                     raise ValueError("Live mode serves Adaptive CAVIA only (C1/C2 need engine support)")
-                if self.app.fsm.state is not FsmState.HOME or self.app.keys.held:
-                    raise ValueError("Change the session at CAVIA Home with all keys released")
+                if not self.app.can_set_user():
+                    raise ValueError("Change the session before confirming a grip, with all keys released")
                 self.session.control(data)
                 self.app.set_user(self.session.state.participant)
                 self._store.add_user(self.app.user)
@@ -224,13 +225,9 @@ class DashboardRuntime:
             self.hub.publish("notice", {"action": data.get("action"), "ok": False, "message": str(err)})
 
     def _publish_users(self) -> None:
-        """Every known profile; the current user is listed even before it has any history."""
+        """Every known profile, oldest first (the startup and switched-to users are registered)."""
         self._users_dirty = False
-        users = self._store.users()
-        if not any(u["user"] == self.app.user for u in users):
-            users.append({"user": self.app.user, "created_at": None, "selections": 0, "accepted": 0,
-                          "last_used": None})
-        self.hub.publish("users", {"current": self.app.user, "users": users})
+        self.hub.publish("users", {"current": self.app.user, "users": self._store.users()})
 
     def _publish_state(self, force: bool = False) -> None:
         app = self.app

@@ -4,7 +4,7 @@
 
 import type {
   Activity, Box, ClientMessage, Condition, GestureKey, Grip, MenuMsg, MenuPolicy, ServerMessage, SessionMsg, SystemMsg,
-  VisionMsg,
+  UserInfo, UsersMsg, VisionMsg,
 } from "../types/messages";
 import { KeyboardEmg, MockFsm } from "./mockFsm";
 import type { Transport } from "./ws";
@@ -60,6 +60,18 @@ const SCENARIO_FOR: Record<Condition, (current: Scenario) => Scenario> = {
 };
 
 const GESTURE_KEYS = new Set(["w", "a", "s", "d", "e"]);
+/** Same rule as cavia.server.session.participant_id. */
+const PARTICIPANT_ID = /^[A-Z0-9][A-Z0-9_-]{0,23}$/;
+
+/** Two profiles with some history, as left behind by `python -m cavia --user 1` / `--user 2`. */
+function mockUsers(): UserInfo[] {
+  const day = 86400;
+  const t = Date.now() / 1000;
+  return [
+    { user: "1", created_at: t - 3 * day, selections: 14, accepted: 12, last_used: t - 2 * 3600 },
+    { user: "2", created_at: t - 2 * day, selections: 6, accepted: 5, last_used: t - day },
+  ];
+}
 const ACTUATION = ["CLOSING", "HOLDING", "OPENING"];
 
 /** Still image standing in for the camera feed in mock mode. */
@@ -75,6 +87,7 @@ export function startMock(params: URLSearchParams): Transport {
   const cameraLost = params.get("camera") === "lost";
   let participant = params.get("participant") ?? "P01";
   let trialActive = false;
+  const userList = mockUsers();
 
   const fsm = new MockFsm();
   const keys = new KeyboardEmg();
@@ -92,6 +105,17 @@ export function startMock(params: URLSearchParams): Transport {
   let lastFsmKey = "";
 
   const session = (): SessionMsg => ({ participant, condition: scenario.condition, trial, trial_active: trialActive });
+
+  const users = (): UsersMsg => ({ current: participant, users: userList.map((u) => ({ ...u })) });
+
+  const reject = (action: string, message: string) => emit({ type: "notice", data: { action, ok: false, message } });
+
+  const register = (user: string) => {
+    if (!userList.some((u) => u.user === user)) {
+      userList.push({ user, created_at: Date.now() / 1000, selections: 0, accepted: 0, last_used: null });
+    }
+  };
+  register(participant);
 
   const system = (t: number): SystemMsg => ({
     camera: cameraLost
@@ -200,7 +224,10 @@ export function startMock(params: URLSearchParams): Transport {
   setLink("mock");
   emit({
     type: "snapshot",
-    data: { vision: vision(0), menu: null, fsm: fsm.status(0), system: system(0), session: session(), emg_recent: [] },
+    data: {
+      vision: vision(0), menu: null, fsm: fsm.status(0), system: system(0), session: session(), users: users(),
+      emg_recent: [],
+    },
   });
   const timer = window.setInterval(step, TICK_MS);
   const scripted = scheduleScript(params.get("script"), (key, down) => transport.send({ type: "key", data: { key, down } }));
@@ -228,9 +255,27 @@ export function startMock(params: URLSearchParams): Transport {
           trialActive = true;
         } else if (c.action === "end_trial") {
           trialActive = false;
+        } else if (c.action === "add_user") {
+          const user = c.user.trim().toUpperCase();
+          if (!PARTICIPANT_ID.test(user)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
+          if (users().users.some((u) => u.user === user)) return reject(c.action, `User ${user} already exists`);
+          register(user);
+          emit({ type: "users", data: users() });
+          return;
         } else {
-          participant = c.participant;
+          const next = c.participant.trim().toUpperCase();
+          if (trialActive) return reject(c.action, "End the current trial before changing the session");
+          if (!PARTICIPANT_ID.test(next)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
+          if (next !== participant) {
+            if (ACTUATION.includes(fsm.state) || keys.held.size > 0) {
+              return reject(c.action, "Change the session before confirming a grip, with all keys released");
+            }
+            fsm.reset(); // an unconfirmed menu is cleared; the next lock ranks for the new user
+          }
+          participant = next;
+          register(participant);
           scenario = SCENARIO_FOR[c.condition](scenario);
+          emit({ type: "users", data: users() });
         }
         emit({ type: "session", data: session() });
       }

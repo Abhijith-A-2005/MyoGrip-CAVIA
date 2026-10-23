@@ -94,3 +94,14 @@ export function menuReason(menu: MenuMsg): string {
   const top = Math.round(menu.confidence.top_share * 100);
   return `Region ${v}% sure. ${n} past choice${n === 1 ? "" : "s"} here. Top grip ${top}%.`;
 }
+
+/** Relative time for a Unix timestamp in seconds: "5 min ago", "yesterday". */
+export function ago(unix: number | null): string {
+  if (unix == null) return "";
+  const s = Math.max(0, Date.now() / 1000 - unix);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  const d = Math.floor(s / 86400);
+  return d === 1 ? "yesterday" : `${d} days ago`;
+}

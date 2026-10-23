@@ -203,11 +203,12 @@ def test_trial_controls_are_logged_with_context(rt):
 
 def test_users_are_listed_added_and_switched(rt):
     hub = rt.test["hub"]
-    assert hub.last("users") == {"current": "P01", "users": [
-        {"user": "P01", "created_at": None, "selections": 0, "accepted": 0, "last_used": None}]}
+    users = hub.last("users")
+    assert users["current"] == "P01" and [u["user"] for u in users["users"]] == ["P01"]
+    assert users["users"][0]["selections"] == 0 and users["users"][0]["last_used"] is None
     rt.control({"action": "add_user", "user": " p07 "})
     step(rt)
-    assert [u["user"] for u in hub.last("users")["users"]] == ["P07", "P01"]
+    assert [u["user"] for u in hub.last("users")["users"]] == ["P01", "P07"]
     assert rt.session.state.participant == "P01"            # adding does not switch
     for bad in ["P07", "", "no spaces"]:
         rt.control({"action": "add_user", "user": bad})
@@ -227,3 +228,22 @@ def test_user_counts_update_after_a_learned_selection(rt):
     step(rt)
     users = rt.test["hub"].last("users")["users"]
     assert users[0]["user"] == "P01" and users[0]["accepted"] == 1
+
+
+def test_switching_user_in_a_menu_clears_it_but_not_after_confirmation(rt):
+    hub = rt.test["hub"]
+    lock(rt)
+    assert hub.last("menu") is not None
+    rt.control({"action": "set_session", "participant": "P02", "condition": "C3_ADAPTIVE"})
+    step(rt)
+    assert rt.app.user == "P02" and hub.last("menu") is None and hub.last("fsm")["state"] == "HOME"
+    step(rt, n=3)                                            # a fresh lock ranks for the new user
+    assert hub.last("menu") is not None and rt.app.decision.user == "P02"
+    rt.key("a", True)
+    step(rt, n=30)
+    rt.key("a", False)
+    step(rt)
+    rt.control({"action": "set_session", "participant": "P03", "condition": "C3_ADAPTIVE"})
+    step(rt)
+    assert rt.app.user == "P02"
+    assert "before confirming" in hub.last("notice")["message"]

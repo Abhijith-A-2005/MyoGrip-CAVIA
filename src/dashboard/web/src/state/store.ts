@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { EmgMsg, ServerMessage, Snapshot } from "../types/messages";
+import type { EmgMsg, NoticeMsg, ServerMessage, Snapshot } from "../types/messages";
 
 export type Link = "connecting" | "open" | "reconnecting" | "mock";
 
@@ -17,6 +17,8 @@ export type DashboardState = Snapshot & {
   /** Monotonic counter so the ribbon can key events uniquely. */
   emgSeq: number;
   emg: EmgEntry[];
+  /** Latest rejected control, with a counter so the same message twice still shows. */
+  notice: (NoticeMsg & { seq: number }) | null;
 };
 
 const EMG_KEEP = 40;
@@ -27,6 +29,8 @@ let state: DashboardState = {
   fsm: null,
   system: null,
   session: null,
+  users: null,
+  notice: null,
   emg_recent: [],
   emg: [],
   emgSeq: 0,
@@ -54,7 +58,7 @@ export function applyMessage(msg: ServerMessage) {
       let seq = state.emgSeq;
       let emg: EmgEntry[] = [];
       for (const e of msg.data.emg_recent) emg = pushEmg(emg, e, ++seq);
-      set({ ...msg.data, emg, emgSeq: seq });
+      set({ users: null, ...msg.data, emg, emgSeq: seq });
       break;
     }
     case "emg":
@@ -74,6 +78,12 @@ export function applyMessage(msg: ServerMessage) {
       break;
     case "session":
       set({ session: msg.data });
+      break;
+    case "users":
+      set({ users: msg.data });
+      break;
+    case "notice":
+      set({ notice: { ...msg.data, seq: (state.notice?.seq ?? 0) + 1 } });
       break;
   }
 }

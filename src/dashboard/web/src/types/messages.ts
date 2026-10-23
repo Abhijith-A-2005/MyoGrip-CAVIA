@@ -80,12 +80,27 @@ export type SessionMsg = {
   trial_active: boolean;
 };
 
+/** A preference profile. `created_at` / `last_used`: Unix seconds, null when unknown or never used. */
+export type UserInfo = {
+  user: string;
+  created_at: number | null;
+  selections: number;
+  accepted: number;
+  last_used: number | null;
+};
+
+export type UsersMsg = { current: string; users: UserInfo[] };
+
+/** A control the backend rejected; sent once, never part of the snapshot. */
+export type NoticeMsg = { action: string | null; ok: false; message: string };
+
 export type Snapshot = {
   vision: VisionMsg | null;
   menu: MenuMsg | null;
   fsm: FsmMsg | null;
   system: SystemMsg | null;
   session: SessionMsg | null;
+  users?: UsersMsg | null;
   emg_recent: EmgMsg[];
 };
 
@@ -96,14 +111,17 @@ export type ServerMessage =
   | { type: "fsm"; data: FsmMsg }
   | { type: "emg"; data: EmgMsg }
   | { type: "system"; data: SystemMsg }
-  | { type: "session"; data: SessionMsg };
+  | { type: "session"; data: SessionMsg }
+  | { type: "users"; data: UsersMsg }
+  | { type: "notice"; data: NoticeMsg };
 
 export type GestureKey = "w" | "a" | "s" | "d" | "e";
 
 export type ControlAction =
   | { action: "start_trial" }
   | { action: "end_trial"; grasp_success: boolean; notes: string }
-  | { action: "set_session"; participant: string; condition: Condition };
+  | { action: "set_session"; participant: string; condition: Condition }
+  | { action: "add_user"; user: string };
 
 export type ClientMessage =
   | { type: "key"; data: { key: GestureKey; down: boolean } }

@@ -256,13 +256,13 @@ same rules as `keyboard_sim.emg.keyboard.KeyboardEmg`. Control actions become `t
 
 The server drives `LiveSimApp` (§8) on one runtime thread: `menu` is the controller's current
 `decision.proposal`, `fsm` is its FSM status, and `emg` events are the gestures that reached the FSM from a
-real key press (the controller's own internal calls are not reported). `set_session` is accepted only at
-CAVIA Home with all keys released and only for `C3_ADAPTIVE`; the participant ID selects the preference
-profile. Rejected controls are logged as `control_rejected` and sent to the browser as a `notice`.
+real key press (the controller's own internal calls are not reported). `set_session` is accepted only before a
+grip is confirmed (CAVIA Home or an unconfirmed menu, which it clears) with all keys released, and only
+for `C3_ADAPTIVE`; the participant ID selects the preference profile. Rejected controls are logged as `control_rejected` and sent to the browser as a `notice`.
 
 Users are preference profiles. A participant ID is upper case: letters, digits, `-` and `_`, up to 24
-characters. `users` lists registered profiles (`add_user`, or any user switched to with `set_session`)
-plus every user found in the selection history, oldest first; the current user is always included.
+characters. `users` lists registered profiles (`add_user`, the startup user, and any user switched to with
+`set_session`) plus every user found in the selection history, oldest first.
 `add_user` registers a profile without switching to it and is rejected for an existing ID.
 
 `GET /api/history?user=<id>` reads the preference database through its own read-only connection:

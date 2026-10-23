@@ -1,6 +1,6 @@
 .hdr {
   position: relative;
-  z-index: 2;
+  z-index: 5; /* above the panels, so the user switcher's popover can overlap them */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;

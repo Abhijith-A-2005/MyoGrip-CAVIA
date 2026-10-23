@@ -2,6 +2,7 @@ import { CONDITION_LABEL } from "../labels";
 import { useDashboard, type Link } from "../state/store";
 import { navigate, toggleDrawer, useRoute, type Route } from "../state/ui";
 import type { HealthStatus } from "../types/messages";
+import { UserSwitcher } from "./UserSwitcher";
 import "./Header.css";
 
 type Tone = "good" | "warn" | "bad" | "idle";
@@ -66,7 +67,7 @@ export function Header() {
         <span className="hdr-condition">{session ? CONDITION_LABEL[session.condition] : "No session"}</span>
         {session && (
           <span className="hdr-meta">
-            <span>Participant <b>{session.participant}</b></span>
+            <UserSwitcher />
             {session.trial > 0 ? (
               <span>Trial <b className="num">{session.trial}</b></span>
             ) : (

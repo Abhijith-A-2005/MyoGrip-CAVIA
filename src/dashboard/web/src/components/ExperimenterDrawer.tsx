@@ -7,11 +7,12 @@ import type { Condition } from "../types/messages";
 import "./ExperimenterDrawer.css";
 
 const CONDITIONS: Condition[] = ["C1_MANUAL", "C2_STATIC", "C3_ADAPTIVE"];
-const PARTICIPANTS = Array.from({ length: 12 }, (_, i) => `P${String(i + 1).padStart(2, "0")}`);
 
 export function ExperimenterDrawer() {
   const open = useDrawer();
   const session = useDashboard((s) => s.session);
+  const users = useDashboard((s) => s.users);
+  const notice = useDashboard((s) => s.notice);
   const [participant, setParticipant] = useState("P01");
   const [condition, setCondition] = useState<Condition>("C3_ADAPTIVE");
   const [notes, setNotes] = useState("");
@@ -30,6 +31,12 @@ export function ExperimenterDrawer() {
     panel.current?.querySelector<HTMLElement>("input:not(:disabled), textarea, .btn-primary")?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // A rejected control replaces the optimistic status line.
+  useEffect(() => {
+    if (open && notice) setStatus(notice.message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notice]);
 
   const active = !!session?.trial_active;
   const trial = session?.trial ?? 0;
@@ -89,8 +96,8 @@ export function ExperimenterDrawer() {
               spellCheck={false}
             />
             <datalist id="participants">
-              {PARTICIPANTS.map((p) => (
-                <option key={p} value={p} />
+              {users?.users.map((u) => (
+                <option key={u.user} value={u.user} />
               ))}
             </datalist>
           </label>
