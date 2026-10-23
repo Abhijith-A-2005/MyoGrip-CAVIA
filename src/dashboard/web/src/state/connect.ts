@@ -19,12 +19,22 @@ export function isMock(p = params()): boolean {
 
 /** Backend address defaults to the page's host on port 8000; override with `?backend=host:port`. */
 function backendHost(p = params()): string {
-  return p.get("backend") ?? `${window.location.hostname}:8000`;
+  // Production uses the same host and port that served the dashboard.
+  // The Vite development server connects to Python on port 8000.
+  return p.get("backend") ?? (
+    import.meta.env.DEV
+      ? `${window.location.hostname}:8000`
+      : window.location.host
+  );
 }
 
 export function connect(): { transport: Transport; dispose: () => void } {
   const p = params();
-  const transport = isMock(p) ? startMock(p) : connectBackend(`ws://${backendHost(p)}/ws`);
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+
+const transport = isMock(p)
+  ? startMock(p)
+  : connectBackend(`${protocol}://${backendHost(p)}/ws`);
   current = transport;
   const detachKeys = attachKeyboard(transport);
   return {
@@ -40,5 +50,7 @@ export function connect(): { transport: Transport; dispose: () => void } {
 /** MJPEG stream from the backend, or the still mock frame in mock mode. */
 export function videoUrl(): string {
   const p = params();
-  return isMock(p) ? mockFrameUrl(p) : `http://${backendHost(p)}/video`;
+  return isMock(p)
+  ? mockFrameUrl(p)
+  : `${window.location.protocol}//${backendHost(p)}/video`;
 }
