@@ -94,6 +94,32 @@ export type UsersMsg = { current: string; users: UserInfo[] };
 /** A control the backend rejected; sent once, never part of the snapshot. */
 export type NoticeMsg = { action: string | null; ok: false; message: string };
 
+/** One confirmed selection with the menu it came from (GET /api/history, docs/interfaces.md section 9). */
+export type HistorySelection = {
+  id: string;
+  time: number;
+  object: string;
+  region: string;
+  grip: Grip;
+  menu: "adaptive" | "full";
+  rank: number | null;
+  policy: MenuPolicy | null;
+  items: Grip[];
+  ranking_source: string | null;
+  region_confidence: number | null;
+  compatible: boolean;
+  instructed: boolean;
+  status: "pending" | "accepted" | "cancelled" | "failed";
+  grasp_success: boolean | null;
+};
+
+export type HistoryMsg = {
+  user: string;
+  summary: { total: number; accepted: number; cancelled: number; adaptive: number; full: number; first_option: number };
+  preferences: { object: string; region: string; grip: Grip; n: number }[];
+  selections: HistorySelection[];
+};
+
 export type Snapshot = {
   vision: VisionMsg | null;
   menu: MenuMsg | null;

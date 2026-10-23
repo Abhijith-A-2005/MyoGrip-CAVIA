@@ -3,8 +3,8 @@
 //              &script=<t>:<key>[:<hold>],...  presses keys automatically (e.g. 3:s,3.5:a:1.5)
 
 import type {
-  Activity, Box, ClientMessage, Condition, GestureKey, Grip, MenuMsg, MenuPolicy, ServerMessage, SessionMsg, SystemMsg,
-  UserInfo, UsersMsg, VisionMsg,
+  Activity, Box, ClientMessage, Condition, GestureKey, Grip, HistoryMsg, HistorySelection, MenuMsg, MenuPolicy,
+  ServerMessage, SessionMsg, SystemMsg, UserInfo, UsersMsg, VisionMsg,
 } from "../types/messages";
 import { KeyboardEmg, MockFsm } from "./mockFsm";
 import type { Transport } from "./ws";
@@ -78,6 +78,79 @@ const ACTUATION = ["CLOSING", "HOLDING", "OPENING"];
 export function mockFrameUrl(params: URLSearchParams): string {
   const policy = (params.get("policy")?.toUpperCase() ?? "TOP_TWO") as MenuPolicy;
   return (SCENARIOS[policy] ?? SCENARIOS.TOP_TWO).view.frame;
+}
+
+type Pick_ = [string, string, Grip, "adaptive" | "full", MenuPolicy, Grip[], HistorySelection["status"], number];
+
+/** Oldest first: [object, region, grip, menu, policy, adaptive items, status, hours ago]. Counts match mockUsers. */
+const MOCK_PICKS: Record<string, Pick_[]> = {
+  "1": [
+    ["cup", "handle", "LATERAL", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 70],
+    ["cup", "handle", "PINCH", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "cancelled", 69],
+    ["cup", "handle", "LATERAL", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 69],
+    ["cup", "body", "POWER", "adaptive", "FULL_COMPATIBLE", ["POWER", "LATERAL"], "accepted", 50],
+    ["cup", "handle", "LATERAL", "adaptive", "TOP_TWO", ["LATERAL", "PINCH"], "accepted", 49],
+    ["bottle", "cap", "TRIPOD", "adaptive", "FULL_COMPATIBLE", ["TRIPOD", "PINCH"], "accepted", 48],
+    ["bottle", "cap", "PINCH", "full", "TOP_TWO", ["TRIPOD", "PINCH"], "accepted", 30],
+    ["cup", "body", "POWER", "adaptive", "TOP_TWO", ["POWER", "LATERAL"], "accepted", 26],
+    ["cup", "handle", "LATERAL", "adaptive", "TOP_TWO", ["LATERAL", "PINCH"], "accepted", 25],
+    ["bottle", "body", "POWER", "adaptive", "ONE_CONFIRM", ["POWER"], "accepted", 24],
+    ["cup", "handle", "LATERAL", "adaptive", "ONE_CONFIRM", ["LATERAL"], "accepted", 6],
+    ["cup", "handle", "TRIPOD", "full", "ONE_CONFIRM", ["LATERAL"], "cancelled", 5],
+    ["cup", "handle", "LATERAL", "adaptive", "ONE_CONFIRM", ["LATERAL"], "accepted", 3],
+    ["cup", "body", "POWER", "adaptive", "TOP_TWO", ["POWER", "LATERAL"], "accepted", 2],
+  ],
+  "2": [
+    ["cup", "handle", "PINCH", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 40],
+    ["cup", "handle", "PINCH", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 39],
+    ["cup", "handle", "PINCH", "adaptive", "TOP_TWO", ["PINCH", "LATERAL"], "accepted", 38],
+    ["cell phone", "side_edge", "LATERAL", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "cancelled", 30],
+    ["cell phone", "side_edge", "PINCH", "full", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 29],
+    ["cup", "body", "POWER", "adaptive", "FULL_COMPATIBLE", ["POWER", "LATERAL"], "accepted", 24],
+  ],
+};
+
+/** Full-menu picks in MOCK_PICKS that do not fit the region (cavia.arbitration.candidates). */
+const INCOMPATIBLE = new Set(["cup|handle|TRIPOD"]);
+
+/** Same shape and counting rules as cavia.server.history.read_history. */
+export function mockHistory(user: string): HistoryMsg {
+  const t = Date.now() / 1000;
+  const selections: HistorySelection[] = (MOCK_PICKS[user] ?? []).map(([object, region, grip, menu, policy, items, status, h], i) => {
+    const index = items.indexOf(grip);
+    return {
+      id: `mock-${user}-${i}`, time: t - h * 3600, object, region, grip, menu,
+      rank: menu === "adaptive" && index >= 0 ? index + 1 : null,
+      policy, items, ranking_source: policy === "FULL_COMPATIBLE" ? "default" : "region",
+      region_confidence: 0.82, compatible: !INCOMPATIBLE.has(`${object}|${region}|${grip}`),
+      instructed: false, status, grasp_success: status === "accepted" ? true : null,
+    };
+  }).reverse();
+  const counts = new Map<string, HistoryMsg["preferences"][number]>();
+  for (const s of selections) {
+    if (s.status !== "accepted" || !s.compatible || s.instructed) continue;
+    const key = `${s.object}|${s.region}|${s.grip}`;
+    const entry = counts.get(key) ?? { object: s.object, region: s.region, grip: s.grip, n: 0 };
+    entry.n += 1;
+    counts.set(key, entry);
+  }
+  const preferences = [...counts.values()].sort(
+    (a, b) => a.object.localeCompare(b.object) || a.region.localeCompare(b.region) || b.n - a.n || a.grip.localeCompare(b.grip),
+  );
+  const count = (test: (s: HistorySelection) => boolean) => selections.filter(test).length;
+  return {
+    user,
+    selections,
+    preferences,
+    summary: {
+      total: selections.length,
+      accepted: count((s) => s.status === "accepted"),
+      cancelled: count((s) => s.status === "cancelled"),
+      adaptive: count((s) => s.menu === "adaptive"),
+      full: count((s) => s.menu === "full"),
+      first_option: count((s) => s.rank === 1),
+    },
+  };
 }
 
 export function startMock(params: URLSearchParams): Transport {
