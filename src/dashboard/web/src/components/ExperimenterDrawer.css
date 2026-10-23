@@ -21,9 +21,10 @@
   z-index: 41;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 22px;
   width: 460px;
-  padding: 32px 32px 28px;
+  padding: 28px 32px 24px;
+  overflow-y: auto;
   background: linear-gradient(180deg, #032105 0%, #011603 30%, #010600 100%);
   box-shadow:
     -1px 0 0 rgb(140 245 154 / 0.25),
@@ -255,4 +256,214 @@
   color: var(--sage);
   background: rgb(2 63 3 / 0.5);
   box-shadow: inset 0 0 0 1px var(--deep);
+}
+
+/* ---- task picker ---- */
+.field-label-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.drawer-link {
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  color: var(--mint);
+  background: none;
+  cursor: pointer;
+}
+
+.drawer-link:hover {
+  text-decoration: underline;
+}
+
+.tasks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.task {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--sage);
+  background: rgb(1 3 0 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--deep);
+  cursor: pointer;
+}
+
+.task:hover:not(:disabled) {
+  background: rgb(2 63 3 / 0.45);
+}
+
+.task[data-on] {
+  color: var(--ivory);
+  background: rgb(3 230 3 / 0.1);
+  box-shadow:
+    inset 0 0 0 1px var(--glow),
+    0 0 16px rgb(3 230 3 / 0.18);
+}
+
+.task-id {
+  grid-row: span 2;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--moss);
+}
+
+.task[data-on] .task-id {
+  color: var(--glow);
+}
+
+.task-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-grip {
+  font-size: 13px;
+  color: var(--moss);
+}
+
+.task[data-on] .task-grip {
+  color: var(--mint);
+}
+
+.task-free {
+  grid-template-columns: 1fr;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-small);
+  color: var(--ivory);
+  cursor: pointer;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--glow);
+}
+
+.check span {
+  color: var(--moss);
+}
+
+/* The running trial's instruction, read out to the participant. */
+.task-now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgb(3 230 3 / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(3 230 3 / 0.3);
+}
+
+.task-now-label {
+  font-size: 14px;
+  color: var(--sage);
+}
+
+.task-now-grip {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--glow);
+  text-shadow: 0 0 18px rgb(3 230 3 / 0.4);
+}
+
+.task-now-target {
+  font-size: var(--t-body);
+  color: var(--ivory);
+}
+
+/* ---- rest window ---- */
+.drawer-count {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--moss);
+}
+
+.drawer-resting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--mint);
+}
+
+.drawer-resting::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 10px var(--mint);
+  animation: status-blink 2.4s ease-in-out infinite;
+}
+
+.rest-timer {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 16px;
+}
+
+.rest-clock {
+  grid-row: span 2;
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ivory);
+}
+
+.rest-bar {
+  position: relative;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--deep);
+  overflow: hidden;
+}
+
+.rest-bar span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--mint);
+  transform-origin: left;
+  transition: transform 250ms linear;
+}
+
+.rest-cue {
+  font-size: 14px;
+  color: var(--sage);
+}
+
+.rest-timer[data-done] .rest-clock,
+.rest-timer[data-done] .rest-cue {
+  color: var(--glow);
+}
+
+.rest-timer[data-done] .rest-bar span {
+  background: var(--glow);
+  box-shadow: 0 0 10px var(--glow);
 }

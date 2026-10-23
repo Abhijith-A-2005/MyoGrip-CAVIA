@@ -73,12 +73,23 @@ export type SystemMsg = {
   emg_source: "device" | "keyboard" | "replay";
 };
 
+/** A trial task from config/tasks.json: the object region and the grip the participant is asked to use. */
+export type TaskInfo = { id: string; object: string; region: string; target_grip: Grip };
+
 export type SessionMsg = {
   participant: string;
   condition: Condition;
   trial: number;
   trial_active: boolean;
+  /** The running trial's task; null for a free trial or between trials. */
+  task: TaskInfo | null;
+  practice: boolean;
+  /** Rest windows started so far, and whether one is running. */
+  rest: number;
+  rest_active: boolean;
 };
+
+export type TasksMsg = { tasks: TaskInfo[] };
 
 /** A preference profile. `created_at` / `last_used`: Unix seconds, null when unknown or never used. */
 export type UserInfo = {
@@ -127,6 +138,7 @@ export type Snapshot = {
   system: SystemMsg | null;
   session: SessionMsg | null;
   users?: UsersMsg | null;
+  tasks?: TasksMsg | null;
   emg_recent: EmgMsg[];
 };
 
@@ -139,13 +151,16 @@ export type ServerMessage =
   | { type: "system"; data: SystemMsg }
   | { type: "session"; data: SessionMsg }
   | { type: "users"; data: UsersMsg }
+  | { type: "tasks"; data: TasksMsg }
   | { type: "notice"; data: NoticeMsg };
 
 export type GestureKey = "w" | "a" | "s" | "d" | "e";
 
 export type ControlAction =
-  | { action: "start_trial" }
+  | { action: "start_trial"; task_id: string | null; practice: boolean }
   | { action: "end_trial"; grasp_success: boolean; notes: string }
+  | { action: "start_rest" }
+  | { action: "end_rest" }
   | { action: "set_session"; participant: string; condition: Condition }
   | { action: "add_user"; user: string };
 

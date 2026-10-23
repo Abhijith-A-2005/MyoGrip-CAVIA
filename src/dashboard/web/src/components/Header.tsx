@@ -1,4 +1,5 @@
-import { CONDITION_LABEL } from "../labels";
+import { clockText, CONDITION_LABEL, GRIP_LABEL, taskLabel } from "../labels";
+import { useRestSeconds } from "../state/rest";
 import { useDashboard, type Link } from "../state/store";
 import { hrefOf, navigate, toggleDrawer, useRoute, type Route } from "../state/ui";
 import type { HealthStatus } from "../types/messages";
@@ -52,6 +53,7 @@ export function Header() {
   const system = useDashboard((s) => s.system);
   const link = useDashboard((s) => s.link);
   const route = useRoute();
+  const restSeconds = useRestSeconds();
 
   const cam = system?.camera;
   const devCamera = cam?.source === "LAPTOP";
@@ -74,7 +76,17 @@ export function Header() {
             ) : (
               <span>No trial yet</span>
             )}
-            {session.trial_active && <span className="hdr-rec">Recording</span>}
+            {session.trial_active && session.task && (
+              <span className="hdr-task">
+                {taskLabel(session.task)}, <b>{GRIP_LABEL[session.task.target_grip]}</b>
+              </span>
+            )}
+            {session.trial_active && <span className="hdr-rec">{session.practice ? "Practice" : "Recording"}</span>}
+            {session.rest_active && (
+              <span className="hdr-rest">
+                Rest, hand relaxed <span className="num">{clockText(restSeconds ?? 0)}</span>
+              </span>
+            )}
           </span>
         )}
       </div>
