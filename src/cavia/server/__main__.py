@@ -21,6 +21,7 @@ from cavia.core.contracts import Condition
 
 from .app import create_app
 from .frames import FrameReceiver
+from .history import read_history
 from .hub import Hub
 from .live_runtime import DashboardRuntime
 from .session import Session
@@ -150,7 +151,7 @@ def main(argv: list[str] | None = None) -> None:
             session_log.close()
 
     app = create_app(hub, dist=args.dist, on_key=runtime.key, on_control=runtime.control, frames=frames,
-                     on_shutdown=shutdown)
+                     on_shutdown=shutdown, history=lambda user: read_history(args.db, user))
     if not (args.dist / "index.html").is_file():
         logging.warning("No dashboard build at %s; run npm run build in src/dashboard/web", args.dist)
 

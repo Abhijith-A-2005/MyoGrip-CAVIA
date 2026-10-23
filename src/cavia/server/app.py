@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -24,6 +24,7 @@ STREAM_POLL_S = 0.015
 
 KeyHandler = Callable[[str, bool], None]
 ControlHandler = Callable[[dict], None]
+HistoryReader = Callable[[str], dict]
 
 
 def parse_client_message(msg: object) -> tuple[str, dict] | None:
@@ -48,6 +49,7 @@ def create_app(
     on_control: ControlHandler | None = None,
     frames: FrameReceiver | None = None,
     on_shutdown: Callable[[], None] | None = None,
+    history: HistoryReader | None = None,
 ) -> FastAPI:
     """`on_key` and `on_control` run on the server thread; keep them short and thread-safe.
 
@@ -69,6 +71,12 @@ def create_app(
     @app.get("/health")
     def health() -> dict:
         return {"ok": True, "clients": hub.client_count}
+
+    @app.get("/api/history", response_model=None)
+    def user_history(user: str = Query(min_length=1, max_length=64)) -> dict | JSONResponse:
+        if history is None:
+            return JSONResponse({"detail": "No preference history on this server"}, status_code=404)
+        return history(user.strip())
 
     @app.get("/video", response_model=None)
     def video() -> JSONResponse | StreamingResponse:
@@ -108,7 +116,7 @@ def create_app(
             hub.remove_client(queue)
 
     if dist is not None and (dist / "index.html").is_file():
-        # Mounted last so /ws, /health and /video take precedence.
+        # Mounted last so /ws, /health, /video and /api take precedence.
         app.mount("/", StaticFiles(directory=dist, html=True), name="dashboard")
     else:
         @app.get("/")

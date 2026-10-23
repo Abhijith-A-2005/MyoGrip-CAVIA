@@ -199,3 +199,31 @@ def test_trial_controls_are_logged_with_context(rt):
     assert start["trial"] == 1 and start["user"] == "P01" and start["condition"] == "C3_ADAPTIVE"
     assert end["data"] == {"trial": 1, "grasp_success": True, "notes": "ok"}
     assert end["trial"] is None                              # trial already closed when logged
+
+
+def test_users_are_listed_added_and_switched(rt):
+    hub = rt.test["hub"]
+    assert hub.last("users") == {"current": "P01", "users": [
+        {"user": "P01", "created_at": None, "selections": 0, "accepted": 0, "last_used": None}]}
+    rt.control({"action": "add_user", "user": " p07 "})
+    step(rt)
+    assert [u["user"] for u in hub.last("users")["users"]] == ["P07", "P01"]
+    assert rt.session.state.participant == "P01"            # adding does not switch
+    for bad in ["P07", "", "no spaces"]:
+        rt.control({"action": "add_user", "user": bad})
+        step(rt)
+        assert hub.last("notice")["ok"] is False
+    assert "already exists" in [d for k, d in hub.sent if k == "notice"][0]["message"]
+    rt.control({"action": "set_session", "participant": "P07", "condition": "C3_ADAPTIVE"})
+    step(rt)
+    assert hub.last("users")["current"] == "P07" and rt.app.user == "P07"
+    assert "user_added" in log_types(rt)
+
+
+def test_user_counts_update_after_a_learned_selection(rt):
+    lock(rt)
+    rt.key("a", True)
+    step(rt, n=50)
+    step(rt)
+    users = rt.test["hub"].last("users")["users"]
+    assert users[0]["user"] == "P01" and users[0]["accepted"] == 1

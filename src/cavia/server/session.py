@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 from dataclasses import asdict, dataclass
 from typing import Callable
@@ -9,6 +10,18 @@ from typing import Callable
 from cavia.core.contracts import Condition
 
 Audit = Callable[..., None]
+
+PARTICIPANT_ID = re.compile(r"[A-Z0-9][A-Z0-9_-]{0,23}")
+
+
+def participant_id(value: object) -> str:
+    """Normalised participant / user ID: upper case, letters, digits, - and _, up to 24 characters."""
+    result = str(value if value is not None else "").strip().upper()
+    if not result:
+        raise ValueError("participant is required")
+    if not PARTICIPANT_ID.fullmatch(result):
+        raise ValueError("Use letters, digits, - or _ (up to 24 characters) for the participant ID")
+    return result
 
 
 @dataclass
@@ -41,9 +54,7 @@ class Session:
                 if s.trial_active:
                     raise ValueError("End the current trial before changing the session")
                 # Validate everything before changing anything, so a rejected request has no effect.
-                participant = str(data.get("participant", "")).strip().upper()
-                if not participant:
-                    raise ValueError("participant is required")
+                participant = participant_id(data.get("participant"))
                 condition = Condition(data.get("condition")).value
                 s.participant, s.condition = participant, condition
                 self._audit("session_start", participant=s.participant, condition=s.condition)
