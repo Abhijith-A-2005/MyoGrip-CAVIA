@@ -1,6 +1,6 @@
 import { attachKeyboard } from "./keyboard";
-import { mockFrameUrl, startMock } from "./mock";
-import type { ClientMessage } from "../types/messages";
+import { mockFrameUrl, mockHistory, startMock } from "./mock";
+import type { ClientMessage, HistoryMsg } from "../types/messages";
 import { connectBackend, type Transport } from "./ws";
 
 let current: Transport | null = null;
@@ -53,4 +53,13 @@ export function videoUrl(): string {
   return isMock(p)
   ? mockFrameUrl(p)
   : `${window.location.protocol}//${backendHost(p)}/video`;
+}
+
+/** One user's selection history, from the backend or generated in mock mode. */
+export async function fetchHistory(user: string, signal?: AbortSignal): Promise<HistoryMsg> {
+  const p = params();
+  if (isMock(p)) return mockHistory(user);
+  const res = await fetch(`${window.location.protocol}//${backendHost(p)}/api/history?user=${encodeURIComponent(user)}`, { signal });
+  if (!res.ok) throw new Error(`History request failed (${res.status})`);
+  return (await res.json()) as HistoryMsg;
 }

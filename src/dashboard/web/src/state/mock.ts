@@ -3,8 +3,8 @@
 //              &script=<t>:<key>[:<hold>],...  presses keys automatically (e.g. 3:s,3.5:a:1.5)
 
 import type {
-  Activity, Box, ClientMessage, Condition, GestureKey, Grip, MenuMsg, MenuPolicy, ServerMessage, SessionMsg, SystemMsg,
-  VisionMsg,
+  Activity, Box, ClientMessage, Condition, GestureKey, Grip, HistoryMsg, HistorySelection, MenuMsg, MenuPolicy,
+  ServerMessage, SessionMsg, SystemMsg, UserInfo, UsersMsg, VisionMsg,
 } from "../types/messages";
 import { KeyboardEmg, MockFsm } from "./mockFsm";
 import type { Transport } from "./ws";
@@ -60,12 +60,97 @@ const SCENARIO_FOR: Record<Condition, (current: Scenario) => Scenario> = {
 };
 
 const GESTURE_KEYS = new Set(["w", "a", "s", "d", "e"]);
+/** Same rule as cavia.server.session.participant_id. */
+const PARTICIPANT_ID = /^[A-Z0-9][A-Z0-9_-]{0,23}$/;
+
+/** Two profiles with some history, as left behind by `python -m cavia --user 1` / `--user 2`. */
+function mockUsers(): UserInfo[] {
+  const day = 86400;
+  const t = Date.now() / 1000;
+  return [
+    { user: "1", created_at: t - 3 * day, selections: 14, accepted: 12, last_used: t - 2 * 3600 },
+    { user: "2", created_at: t - 2 * day, selections: 6, accepted: 5, last_used: t - day },
+  ];
+}
 const ACTUATION = ["CLOSING", "HOLDING", "OPENING"];
 
 /** Still image standing in for the camera feed in mock mode. */
 export function mockFrameUrl(params: URLSearchParams): string {
   const policy = (params.get("policy")?.toUpperCase() ?? "TOP_TWO") as MenuPolicy;
   return (SCENARIOS[policy] ?? SCENARIOS.TOP_TWO).view.frame;
+}
+
+type Pick_ = [string, string, Grip, "adaptive" | "full", MenuPolicy, Grip[], HistorySelection["status"], number];
+
+/** Oldest first: [object, region, grip, menu, policy, adaptive items, status, hours ago]. Counts match mockUsers. */
+const MOCK_PICKS: Record<string, Pick_[]> = {
+  "1": [
+    ["cup", "handle", "LATERAL", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 70],
+    ["cup", "handle", "PINCH", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "cancelled", 69],
+    ["cup", "handle", "LATERAL", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 69],
+    ["cup", "body", "POWER", "adaptive", "FULL_COMPATIBLE", ["POWER", "LATERAL"], "accepted", 50],
+    ["cup", "handle", "LATERAL", "adaptive", "TOP_TWO", ["LATERAL", "PINCH"], "accepted", 49],
+    ["bottle", "cap", "TRIPOD", "adaptive", "FULL_COMPATIBLE", ["TRIPOD", "PINCH"], "accepted", 48],
+    ["bottle", "cap", "PINCH", "full", "TOP_TWO", ["TRIPOD", "PINCH"], "accepted", 30],
+    ["cup", "body", "POWER", "adaptive", "TOP_TWO", ["POWER", "LATERAL"], "accepted", 26],
+    ["cup", "handle", "LATERAL", "adaptive", "TOP_TWO", ["LATERAL", "PINCH"], "accepted", 25],
+    ["bottle", "body", "POWER", "adaptive", "ONE_CONFIRM", ["POWER"], "accepted", 24],
+    ["cup", "handle", "LATERAL", "adaptive", "ONE_CONFIRM", ["LATERAL"], "accepted", 6],
+    ["cup", "handle", "TRIPOD", "full", "ONE_CONFIRM", ["LATERAL"], "cancelled", 5],
+    ["cup", "handle", "LATERAL", "adaptive", "ONE_CONFIRM", ["LATERAL"], "accepted", 3],
+    ["cup", "body", "POWER", "adaptive", "TOP_TWO", ["POWER", "LATERAL"], "accepted", 2],
+  ],
+  "2": [
+    ["cup", "handle", "PINCH", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 40],
+    ["cup", "handle", "PINCH", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 39],
+    ["cup", "handle", "PINCH", "adaptive", "TOP_TWO", ["PINCH", "LATERAL"], "accepted", 38],
+    ["cell phone", "side_edge", "LATERAL", "adaptive", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "cancelled", 30],
+    ["cell phone", "side_edge", "PINCH", "full", "FULL_COMPATIBLE", ["LATERAL", "PINCH"], "accepted", 29],
+    ["cup", "body", "POWER", "adaptive", "FULL_COMPATIBLE", ["POWER", "LATERAL"], "accepted", 24],
+  ],
+};
+
+/** Full-menu picks in MOCK_PICKS that do not fit the region (cavia.arbitration.candidates). */
+const INCOMPATIBLE = new Set(["cup|handle|TRIPOD"]);
+
+/** Same shape and counting rules as cavia.server.history.read_history. */
+export function mockHistory(user: string): HistoryMsg {
+  const t = Date.now() / 1000;
+  const selections: HistorySelection[] = (MOCK_PICKS[user] ?? []).map(([object, region, grip, menu, policy, items, status, h], i) => {
+    const index = items.indexOf(grip);
+    return {
+      id: `mock-${user}-${i}`, time: t - h * 3600, object, region, grip, menu,
+      rank: menu === "adaptive" && index >= 0 ? index + 1 : null,
+      policy, items, ranking_source: policy === "FULL_COMPATIBLE" ? "default" : "region",
+      region_confidence: 0.82, compatible: !INCOMPATIBLE.has(`${object}|${region}|${grip}`),
+      instructed: false, status, grasp_success: status === "accepted" ? true : null,
+    };
+  }).reverse();
+  const counts = new Map<string, HistoryMsg["preferences"][number]>();
+  for (const s of selections) {
+    if (s.status !== "accepted" || !s.compatible || s.instructed) continue;
+    const key = `${s.object}|${s.region}|${s.grip}`;
+    const entry = counts.get(key) ?? { object: s.object, region: s.region, grip: s.grip, n: 0 };
+    entry.n += 1;
+    counts.set(key, entry);
+  }
+  const preferences = [...counts.values()].sort(
+    (a, b) => a.object.localeCompare(b.object) || a.region.localeCompare(b.region) || b.n - a.n || a.grip.localeCompare(b.grip),
+  );
+  const count = (test: (s: HistorySelection) => boolean) => selections.filter(test).length;
+  return {
+    user,
+    selections,
+    preferences,
+    summary: {
+      total: selections.length,
+      accepted: count((s) => s.status === "accepted"),
+      cancelled: count((s) => s.status === "cancelled"),
+      adaptive: count((s) => s.menu === "adaptive"),
+      full: count((s) => s.menu === "full"),
+      first_option: count((s) => s.rank === 1),
+    },
+  };
 }
 
 export function startMock(params: URLSearchParams): Transport {
@@ -75,6 +160,7 @@ export function startMock(params: URLSearchParams): Transport {
   const cameraLost = params.get("camera") === "lost";
   let participant = params.get("participant") ?? "P01";
   let trialActive = false;
+  const userList = mockUsers();
 
   const fsm = new MockFsm();
   const keys = new KeyboardEmg();
@@ -92,6 +178,17 @@ export function startMock(params: URLSearchParams): Transport {
   let lastFsmKey = "";
 
   const session = (): SessionMsg => ({ participant, condition: scenario.condition, trial, trial_active: trialActive });
+
+  const users = (): UsersMsg => ({ current: participant, users: userList.map((u) => ({ ...u })) });
+
+  const reject = (action: string, message: string) => emit({ type: "notice", data: { action, ok: false, message } });
+
+  const register = (user: string) => {
+    if (!userList.some((u) => u.user === user)) {
+      userList.push({ user, created_at: Date.now() / 1000, selections: 0, accepted: 0, last_used: null });
+    }
+  };
+  register(participant);
 
   const system = (t: number): SystemMsg => ({
     camera: cameraLost
@@ -200,7 +297,10 @@ export function startMock(params: URLSearchParams): Transport {
   setLink("mock");
   emit({
     type: "snapshot",
-    data: { vision: vision(0), menu: null, fsm: fsm.status(0), system: system(0), session: session(), emg_recent: [] },
+    data: {
+      vision: vision(0), menu: null, fsm: fsm.status(0), system: system(0), session: session(), users: users(),
+      emg_recent: [],
+    },
   });
   const timer = window.setInterval(step, TICK_MS);
   const scripted = scheduleScript(params.get("script"), (key, down) => transport.send({ type: "key", data: { key, down } }));
@@ -228,9 +328,27 @@ export function startMock(params: URLSearchParams): Transport {
           trialActive = true;
         } else if (c.action === "end_trial") {
           trialActive = false;
+        } else if (c.action === "add_user") {
+          const user = c.user.trim().toUpperCase();
+          if (!PARTICIPANT_ID.test(user)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
+          if (users().users.some((u) => u.user === user)) return reject(c.action, `User ${user} already exists`);
+          register(user);
+          emit({ type: "users", data: users() });
+          return;
         } else {
-          participant = c.participant;
+          const next = c.participant.trim().toUpperCase();
+          if (trialActive) return reject(c.action, "End the current trial before changing the session");
+          if (!PARTICIPANT_ID.test(next)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
+          if (next !== participant) {
+            if (ACTUATION.includes(fsm.state) || keys.held.size > 0) {
+              return reject(c.action, "Change the session before confirming a grip, with all keys released");
+            }
+            fsm.reset(); // an unconfirmed menu is cleared; the next lock ranks for the new user
+          }
+          participant = next;
+          register(participant);
           scenario = SCENARIO_FOR[c.condition](scenario);
+          emit({ type: "users", data: users() });
         }
         emit({ type: "session", data: session() });
       }

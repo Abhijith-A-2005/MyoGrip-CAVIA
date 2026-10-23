@@ -124,3 +124,23 @@ def test_missing_build_explains_how_to_build(tmp_path):
     with TestClient(app) as client:
         r = client.get("/")
         assert r.status_code == 503 and "npm run build" in r.json()["detail"]
+
+
+def test_history_endpoint():
+    calls = []
+    hub = Hub()
+    app = create_app(hub, history=lambda user: calls.append(user) or {"user": user, "selections": []})
+    with TestClient(app) as client:
+        assert client.get("/api/history", params={"user": " P01 "}).json() == {"user": "P01", "selections": []}
+        assert client.get("/api/history").status_code == 422
+    assert calls == ["P01"]
+    with TestClient(create_app(Hub())) as client:
+        assert client.get("/api/history", params={"user": "P01"}).status_code == 404
+
+
+def test_notice_is_sent_but_not_kept_in_the_snapshot():
+    hub = Hub()
+    hub.publish("notice", {"ok": False, "message": "no"})
+    hub.publish("users", {"current": "P01", "users": []})
+    snap = hub.snapshot()
+    assert "notice" not in snap and snap["users"]["current"] == "P01"

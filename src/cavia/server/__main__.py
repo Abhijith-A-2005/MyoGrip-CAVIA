@@ -13,6 +13,7 @@ import webbrowser
 from cavia.core.contracts import Condition
 
 from .app import create_app
+from .history import read_history
 from .hub import Hub
 from .live_runtime import DashboardRuntime
 from .session import Session
@@ -248,6 +249,7 @@ def main(argv=None):
             on_control=runtime.control,
             frames=frames,
             on_shutdown=stack.close,
+            history=lambda user: read_history(args.db, user),
         )
 
         runtime.start()

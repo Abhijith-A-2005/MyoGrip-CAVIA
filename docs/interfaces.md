@@ -215,7 +215,8 @@ Server: `src/cavia/server/` (`python -m cavia.server`). Client: `src/dashboard/`
 
 Endpoints: `ws://<host>:8000/ws` (state), `http://<host>:8000/video` (MJPEG of the raw camera frame;
 the dashboard draws its own overlays; 503 until the first frame, and the stream ends after 5 s without
-a new frame), and the built UI from `src/dashboard/web/dist/`. `system.camera.fps` and `latency_ms`
+a new frame), `http://<host>:8000/api/history?user=<id>` (one user's selection history, below), and the
+built UI from `src/dashboard/web/dist/`. `system.camera.fps` and `latency_ms`
 (capture to server) come from the frame stream when it is flowing; `latency_ms` 0 means not measured.
 
 Every server message is `{"type": "<kind>", "data": {...}}`. On connect the server sends one `snapshot`,
@@ -223,13 +224,15 @@ then incremental messages.
 
 | `type` | `data` | When |
 |---|---|---|
-| `snapshot` | `{vision, menu, fsm, system, session, emg_recent: []}` | once per connection |
+| `snapshot` | `{vision, menu, fsm, system, session, users, emg_recent: []}` | once per connection |
 | `vision` | `VisionResult` (§2) **plus** `source` (`XIAO`/`LAPTOP`), `box`, `region_box` | every processed frame |
 | `menu` | `MenuProposal` (§3), or `null` to clear both menus | on lock, and on return to HOME |
 | `fsm` | `FsmStatus` (§5) **plus** `returning: bool` (HE controlled opening in progress) | every change, ≥10 Hz in actuation |
 | `emg` | `EmgInput` (§4) | each discrete event and each activity change |
 | `system` | `{camera: {status, source, fps, latency_ms}, vision: {status, model}, hand_link: {status, battery_pct}, emg_source}` | about 1 Hz |
 | `session` | `{participant, condition, trial, trial_active}` | on change |
+| `users` | `{current, users: [{user, created_at, selections, accepted, last_used}]}` | on connect, add, switch, and after each learned selection |
+| `notice` | `{action, ok: false, message}` | a control was rejected (not kept in the snapshot) |
 
 `box` and `region_box` are `[x1, y1, x2, y2]` normalised 0..1 in frame coordinates, or `null`.
 `status` values: `live` / `ok` / `connected`, `degraded`, `stale` / `down` / `disconnected`.
@@ -244,6 +247,7 @@ Browser → server:
 {"type": "control", "data": {"action": "start_trial"}}
 {"type": "control", "data": {"action": "end_trial", "grasp_success": true, "notes": ""}}
 {"type": "control", "data": {"action": "set_session", "participant": "P02", "condition": "C2_STATIC"}}
+{"type": "control", "data": {"action": "add_user", "user": "P07"}}
 ```
 
 `key` messages carry real key-down/up for `w a s d e` only (keyboard EMG mode); the backend applies the
@@ -252,9 +256,30 @@ same rules as `keyboard_sim.emg.keyboard.KeyboardEmg`. Control actions become `t
 
 The server drives `LiveSimApp` (§8) on one runtime thread: `menu` is the controller's current
 `decision.proposal`, `fsm` is its FSM status, and `emg` events are the gestures that reached the FSM from a
-real key press (the controller's own internal calls are not reported). `set_session` is accepted only at
-CAVIA Home with all keys released and only for `C3_ADAPTIVE`; the participant ID selects the preference
-profile. Rejected controls are logged as `control_rejected`.
+real key press (the controller's own internal calls are not reported). `set_session` is accepted only before a
+grip is confirmed (CAVIA Home or an unconfirmed menu, which it clears) with all keys released, and only
+for `C3_ADAPTIVE`; the participant ID selects the preference profile. Rejected controls are logged as `control_rejected` and sent to the browser as a `notice`.
+
+Users are preference profiles. A participant ID is upper case: letters, digits, `-` and `_`, up to 24
+characters. `users` lists registered profiles (`add_user`, the startup user, and any user switched to with
+`set_session`) plus every user found in the selection history, oldest first.
+`add_user` registers a profile without switching to it and is rejected for an existing ID.
+
+`GET /api/history?user=<id>` reads the preference database through its own read-only connection:
+
+```json
+{"user": "P01",
+ "summary": {"total": 4, "accepted": 3, "cancelled": 1, "adaptive": 3, "full": 1, "first_option": 2},
+ "preferences": [{"object": "cup", "region": "handle", "grip": "LATERAL", "n": 2}],
+ "selections": [{"id": "...", "time": 1761120000.1, "object": "cup", "region": "handle", "grip": "LATERAL",
+                 "menu": "adaptive", "rank": 1, "policy": "TOP_TWO", "items": ["LATERAL", "PINCH"],
+                 "ranking_source": "region", "region_confidence": 0.9, "compatible": true,
+                 "instructed": false, "status": "accepted", "grasp_success": null}]}
+```
+
+`selections` are newest first; `time` is Unix seconds. `menu` is `adaptive` or `full`; `rank` is the grip's
+1-based position in the Adaptive Menu (null when chosen from the Full Menu). `preferences` counts
+accepted, compatible, non-instructed selections per object and region: the counts that rank the menu.
 
 ### Dashboard camera delivery
 

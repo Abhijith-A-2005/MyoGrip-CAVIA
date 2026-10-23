@@ -1,7 +1,8 @@
 import { CONDITION_LABEL } from "../labels";
 import { useDashboard, type Link } from "../state/store";
-import { navigate, toggleDrawer, useRoute, type Route } from "../state/ui";
+import { hrefOf, navigate, toggleDrawer, useRoute, type Route } from "../state/ui";
 import type { HealthStatus } from "../types/messages";
+import { UserSwitcher } from "./UserSwitcher";
 import "./Header.css";
 
 type Tone = "good" | "warn" | "bad" | "idle";
@@ -33,7 +34,7 @@ function Status({ label, tone, detail }: { label: string; tone: Tone; detail?: s
 function Tab({ route, current, children }: { route: Route; current: Route; children: string }) {
   return (
     <a
-      href={route === "evaluation" ? "#/evaluation" : "#/"}
+      href={hrefOf(route)}
       className="hdr-tab"
       aria-current={route === current ? "page" : undefined}
       onClick={(e) => {
@@ -67,7 +68,7 @@ export function Header() {
         <span className="hdr-condition">{session ? CONDITION_LABEL[session.condition] : "No session"}</span>
         {session && (
           <span className="hdr-meta">
-            <span>Participant <b>{session.participant}</b></span>
+            <UserSwitcher />
             {session.trial > 0 ? (
               <span>Trial <b className="num">{session.trial}</b></span>
             ) : (
@@ -81,6 +82,7 @@ export function Header() {
       <div className="hdr-right">
         <nav className="hdr-tabs" aria-label="Pages">
           <Tab route="live" current={route}>Live</Tab>
+          <Tab route="history" current={route}>History</Tab>
           <Tab route="evaluation" current={route}>Evaluation</Tab>
         </nav>
         <ul className="hdr-status" aria-label="System status">

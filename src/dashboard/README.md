@@ -1,7 +1,8 @@
 # CAVIA Dashboard
 
 The live dashboard for MyoGrip CAVIA: wrist camera, target and confidence, the Adaptive and Full menus
-side by side, the hand, and the EMG timeline. A second page holds the evaluation results.
+side by side, the hand, and the EMG timeline. Other pages show each user's selection history and the
+evaluation results.
 
 It is a **mirror**: it shows what the CAVIA backend sends and never decides menus or FSM transitions.
 The only things it sends back are keyboard EMG keys and experimenter controls.
@@ -57,6 +58,31 @@ same keys as mock mode (`W` `S` `A` `D` `E`). The drawer's participant ID select
 ranks the menu (`--db`, default `data/arbitration/demo.sqlite3`); every run writes a session log to
 `--log-dir` (default `data/arbitration/sessions/`).
 
+## Users
+
+Each user (participant ID) has its own preference history, stored in the `--db` SQLite file (gitignored, so
+histories stay on the laptop that recorded them). Click **User ▾** in the header to:
+
+- switch users: allowed until a grip is confirmed; an unconfirmed menu is cleared and the next lock is
+  ranked for the new user. During a grip, leave it (`E`) first;
+- add a user with **+ New user** (letters, digits, `-` and `_`, up to 24 characters). The new user becomes
+  the current one.
+
+The list holds every registered user plus anyone found in the history (for example users `1` and `2`
+from `python -m cavia --user 1`). Rejected requests show their reason in the list.
+
+## History page
+
+`#/history`, from the **History** tab. Pick a user to see:
+
+- totals: selections, learned, share from the Adaptive menu, top suggestion taken, Full menu overrides;
+- **What CAVIA has learned**: learned grips per object and region, the counts that rank the Adaptive menu;
+- **Selections**: every confirmed grip, newest first, with the menu it came from (Adaptive rank or Full
+  menu), the menu that was shown, and whether it was learned or cancelled.
+
+It reads `GET /api/history?user=<id>` and refreshes when that user's counts change. Viewing a user here
+does not switch the live user. Mock mode shows sample histories for users `1` and `2`.
+
 Not yet in live mode: the Manual (C1) and Static (C2) conditions, which need support in the arbitration
 engine, and the real hand (the Hand status stays red; the FSM is simulated from the keys).
 
@@ -71,7 +97,7 @@ No backend needed: a scripted camera lock, the menus, and a TypeScript port of t
 | `?backend=host:port` | Backend address for live mode (default: this host, port 8000) |
 | `?policy=TOP_TWO` | Adaptive menu policy: `TOP_TWO`, `ONE_CONFIRM`, `FULL_COMPATIBLE`, `FULL_MENU` |
 | `?camera=lost` | Show the camera failure state |
-| `?participant=P03` | Participant label |
+| `?participant=P03` | Starting user (mock users `1` and `2` come with sample history) |
 | `?script=3:s,3.5:a:1.5` | Press keys automatically: `time:key[:hold seconds]`, comma-separated. Good for a hands-free demo |
 
 The experimenter drawer's condition switch also changes the mock scenario (Manual, Static, Adaptive).
@@ -94,6 +120,7 @@ is ignored as `INVALID`, `A` and `D` together stop the hand, and losing window f
 ## Pages
 
 - `#/` Live dashboard
+- `#/history` Selection history per user
 - `#/evaluation` Evaluation (shell; filled in after the pilot)
 
 Hash routes, so the backend serves only `index.html` and never needs SPA fallback rules.
@@ -112,9 +139,9 @@ Fonts (Cinzel, Figtree) are installed from npm so the dashboard works without in
 
 ```text
 web/src/
-├── App.tsx, LivePage.tsx, EvaluationPage.tsx
-├── components/   Stage, Atmosphere, FocusLight, Header, CameraPanel, TargetPanel, HandPanel,
-│                 Menus, GripGlyph, EmgRibbon, ExperimenterDrawer, Panel
+├── App.tsx, LivePage.tsx, HistoryPage.tsx, EvaluationPage.tsx
+├── components/   Stage, Atmosphere, FocusLight, Header, UserSwitcher, CameraPanel, TargetPanel,
+│                 HandPanel, Menus, GripGlyph, EmgRibbon, ExperimenterDrawer, Panel
 ├── state/        store (latest snapshot), ws (backend), mock + mockFsm, keyboard, connect, ui
 ├── types/        messages.ts: TypeScript copy of the data contract
 ├── theme/        tokens.css, base.css
@@ -125,5 +152,5 @@ web/public/       favicon, mock camera frames
 
 ## Data contract
 
-`ws://<host>:8000/ws` and `http://<host>:8000/video` (MJPEG). Message shapes are in
+`ws://<host>:8000/ws`, `http://<host>:8000/video` (MJPEG) and `http://<host>:8000/api/history?user=<id>`. Message shapes are in
 [`docs/interfaces.md`](../../docs/interfaces.md) section 9 and mirrored in `web/src/types/messages.ts`.

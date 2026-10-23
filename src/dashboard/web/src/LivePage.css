@@ -1,8 +1,8 @@
-/* 1920x1080 stage: header 72 + two 416px rows + ribbon 88, 16px gaps, 20/24px padding. */
+/* 1920x1080 stage: header 72 + camera row 492 + menu row 340 + ribbon 88, 16px gaps, 20/24px padding. */
 .live {
   position: relative;
   display: grid;
-  grid-template-rows: 72px 1fr 1fr 88px;
+  grid-template-rows: 72px 492px 1fr 88px;
   gap: var(--s-4);
   height: 100%;
   padding: 20px var(--s-5);
@@ -16,8 +16,8 @@
 
 .live-top {
   display: grid;
-  /* Camera column is sized by the 4:3 feed; Target and Hand share the rest. */
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.15fr);
+  /* Camera column is sized by the 16:9 viewfinder; Target is a narrow column; Hand takes the rest. */
+  grid-template-columns: auto 300px minmax(0, 1fr);
   gap: 28px;
   min-height: 0;
 }

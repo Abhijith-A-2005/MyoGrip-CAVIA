@@ -350,17 +350,21 @@ def test_unknown_region_uses_object_candidates(live):
     ]
 
 
-def test_user_changes_only_at_home(live):
+def test_user_changes_only_before_confirmation(live):
     app, store, _ = live
-    app.set_user(2)
+    app.set_user(1)
     feed(live)
+    assert app.decision.user == "1"
 
+    app.set_user(2)                     # an unconfirmed menu is cleared
+    assert app.decision is None
+    assert app.fsm.state is FsmState.HOME
+    feed(live)
     assert app.decision.user == "2"
 
+    tap(app, "a")
     with pytest.raises(ValueError):
         app.set_user(1)
-
-    tap(app, "a")
     assert store.history()[0]["user"] == "2"
 
 

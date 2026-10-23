@@ -7,8 +7,8 @@ import threading
 from collections import deque
 from typing import Any
 
-STATE_KINDS = ("vision", "menu", "fsm", "system", "session")
-KINDS = frozenset((*STATE_KINDS, "emg"))
+STATE_KINDS = ("vision", "menu", "fsm", "system", "session", "users")
+KINDS = frozenset((*STATE_KINDS, "emg", "notice"))   # emg and notice are events, not state
 
 EMG_KEEP = 40
 CLIENT_QUEUE = 256
@@ -38,7 +38,7 @@ class Hub:
         with self._lock:
             if kind == "emg":
                 self._emg.append(data)
-            else:
+            elif kind != "notice":
                 self._state[kind] = data
             clients = list(self._clients)
             loop = self._loop

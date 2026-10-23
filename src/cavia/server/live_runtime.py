@@ -19,12 +19,12 @@ from typing import IO, Callable
 
 from cavia.arbitration.engine import ArbitrationEngine
 from cavia.arbitration.preferences import PreferenceStore
-from cavia.core.contracts import Activity, Condition, FsmState
+from cavia.core.contracts import Activity, Condition
 from cavia.runtime.controller import LiveSimApp
 from keyboard_sim.fsm.machine import ACTUATION_STATES
 
 from .hub import Hub
-from .session import Session
+from .session import Session, participant_id
 from .vision_feed import VisionFeed
 
 log = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ class DashboardRuntime:
         self._fsm_at = -1.0
         self._last_progress: float | None = None
         self._activity = Activity.REST
+        self._users_dirty = False
 
     # ---- any thread ---------------------------------------------------------
 
@@ -79,6 +80,8 @@ class DashboardRuntime:
 
     def audit(self, event: str, **data) -> None:
         """Session log record (docs/interfaces.md section 6), written on the runtime thread."""
+        if event == "preference_update":
+            self._users_dirty = True          # selection counts changed
         if self._log_file is None:
             return
         s = self.session.state
@@ -123,6 +126,8 @@ class DashboardRuntime:
 
         self.app.fsm.on_event = on_event
         self.audit("session_started", user=self.app.user, database=str(self.db))
+        self._store.add_user(self.app.user)
+        self._publish_users()
         self._publish_state(force=True)
 
     def close(self) -> None:
@@ -147,6 +152,8 @@ class DashboardRuntime:
             else:
                 self._apply_control(item[1])
 
+        if self._users_dirty:
+            self._publish_users()
         if self.feed is not None:
             self.feed.poll()                  # publishes vision, then hands results to app.receive
             app.check_source(exited=self.feed.source.exited)
@@ -197,15 +204,30 @@ class DashboardRuntime:
             if data.get("action") == "set_session":
                 if data.get("condition") not in LIVE_CONDITIONS:
                     raise ValueError("Live mode serves Adaptive CAVIA only (C1/C2 need engine support)")
-                if self.app.fsm.state is not FsmState.HOME or self.app.keys.held:
-                    raise ValueError("Change the session at CAVIA Home with all keys released")
+                if not self.app.can_set_user():
+                    raise ValueError("Change the session before confirming a grip, with all keys released")
                 self.session.control(data)
                 self.app.set_user(self.session.state.participant)
+                self._store.add_user(self.app.user)
+                self._publish_users()
+            elif data.get("action") == "add_user":
+                user = participant_id(data.get("user"))
+                if any(u["user"] == user for u in self._store.users()):
+                    raise ValueError(f"User {user} already exists")
+                self._store.add_user(user)
+                self.audit("user_added", user=user)
+                self._publish_users()
             else:
                 self.session.control(data)
         except ValueError as err:
             log.info("Rejected %s: %s", data.get("action"), err)
             self.audit("control_rejected", action=data.get("action"), reason=str(err))
+            self.hub.publish("notice", {"action": data.get("action"), "ok": False, "message": str(err)})
+
+    def _publish_users(self) -> None:
+        """Every known profile, oldest first (the startup and switched-to users are registered)."""
+        self._users_dirty = False
+        self.hub.publish("users", {"current": self.app.user, "users": self._store.users()})
 
     def _publish_state(self, force: bool = False) -> None:
         app = self.app

@@ -50,10 +50,20 @@ class LiveSimApp(ArbitrationSimApp):
         # The base constructor calls this. Live vision supplies the menu.
         pass
 
+    def can_set_user(self):
+        """Before confirmation: at HOME or in an unconfirmed menu, with all keys released."""
+        return (
+            not self.frozen
+            and self.fsm.state in (FsmState.HOME, *MENU_STATES)
+            and not self.keys.held
+        )
+
     def set_user(self, user):
-        """Allow a future dashboard to switch profiles at HOME."""
-        if self.fsm.state is not FsmState.HOME or self.keys.held:
-            raise ValueError("Change user only at HOME with all keys released")
+        """Switch profiles before confirmation; an unconfirmed menu is cleared."""
+        if not self.can_set_user():
+            raise ValueError(
+                "Change user before confirming a grip, with all keys released"
+            )
 
         self.user = user_key(user)
         self._home()

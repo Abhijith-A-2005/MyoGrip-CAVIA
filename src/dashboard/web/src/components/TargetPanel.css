@@ -13,34 +13,36 @@
   color: var(--sage);
 }
 
+/* A narrow column: the confidence ring on top, the object and region below it. */
 .target-main {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
+  justify-content: center;
+  gap: 26px;
   flex: 1;
+  text-align: center;
 }
 
 .target-names {
+  max-width: 100%;
   min-width: 0;
 }
 
 .target-object {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 58px;
+  font-size: 46px;
   line-height: 1;
   letter-spacing: 0.06em;
   color: var(--ivory);
   text-shadow: 0 0 28px rgb(3 230 3 / 0.25);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere; /* long names ("Small box") wrap in the narrow column */
 }
 
 .target-object[data-empty] {
   font-family: var(--font-ui);
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 500;
   letter-spacing: 0;
   color: var(--moss);
@@ -73,8 +75,8 @@
 .ring {
   position: relative;
   flex: none;
-  width: 150px;
-  height: 150px;
+  width: 168px;
+  height: 168px;
   --ring: var(--moss);
 }
 
@@ -140,48 +142,4 @@
   margin-top: 4px;
   font-size: 14px;
   color: var(--ring);
-}
-
-/* Evidence bars */
-.target-evidence {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: var(--s-4);
-  border-top: 1px solid transparent;
-  border-image: linear-gradient(90deg, rgb(4 93 3 / 0.9), transparent) 1;
-}
-
-.ev {
-  display: grid;
-  grid-template-columns: 96px 1fr 48px;
-  align-items: center;
-  gap: var(--s-3);
-  font-size: var(--t-small);
-}
-
-.ev-label {
-  color: var(--sage);
-}
-
-.ev-track {
-  position: relative;
-  height: 4px;
-  border-radius: var(--r-pill);
-  background: var(--deep);
-  overflow: hidden;
-}
-
-.ev-fill {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--emerald), var(--glow));
-  transform-origin: left;
-  transition: transform 220ms linear;
-}
-
-.ev-value {
-  text-align: right;
-  color: var(--ivory);
 }

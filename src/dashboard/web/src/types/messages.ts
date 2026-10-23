@@ -80,12 +80,53 @@ export type SessionMsg = {
   trial_active: boolean;
 };
 
+/** A preference profile. `created_at` / `last_used`: Unix seconds, null when unknown or never used. */
+export type UserInfo = {
+  user: string;
+  created_at: number | null;
+  selections: number;
+  accepted: number;
+  last_used: number | null;
+};
+
+export type UsersMsg = { current: string; users: UserInfo[] };
+
+/** A control the backend rejected; sent once, never part of the snapshot. */
+export type NoticeMsg = { action: string | null; ok: false; message: string };
+
+/** One confirmed selection with the menu it came from (GET /api/history, docs/interfaces.md section 9). */
+export type HistorySelection = {
+  id: string;
+  time: number;
+  object: string;
+  region: string;
+  grip: Grip;
+  menu: "adaptive" | "full";
+  rank: number | null;
+  policy: MenuPolicy | null;
+  items: Grip[];
+  ranking_source: string | null;
+  region_confidence: number | null;
+  compatible: boolean;
+  instructed: boolean;
+  status: "pending" | "accepted" | "cancelled" | "failed";
+  grasp_success: boolean | null;
+};
+
+export type HistoryMsg = {
+  user: string;
+  summary: { total: number; accepted: number; cancelled: number; adaptive: number; full: number; first_option: number };
+  preferences: { object: string; region: string; grip: Grip; n: number }[];
+  selections: HistorySelection[];
+};
+
 export type Snapshot = {
   vision: VisionMsg | null;
   menu: MenuMsg | null;
   fsm: FsmMsg | null;
   system: SystemMsg | null;
   session: SessionMsg | null;
+  users?: UsersMsg | null;
   emg_recent: EmgMsg[];
 };
 
@@ -96,14 +137,17 @@ export type ServerMessage =
   | { type: "fsm"; data: FsmMsg }
   | { type: "emg"; data: EmgMsg }
   | { type: "system"; data: SystemMsg }
-  | { type: "session"; data: SessionMsg };
+  | { type: "session"; data: SessionMsg }
+  | { type: "users"; data: UsersMsg }
+  | { type: "notice"; data: NoticeMsg };
 
 export type GestureKey = "w" | "a" | "s" | "d" | "e";
 
 export type ControlAction =
   | { action: "start_trial" }
   | { action: "end_trial"; grasp_success: boolean; notes: string }
-  | { action: "set_session"; participant: string; condition: Condition };
+  | { action: "set_session"; participant: string; condition: Condition }
+  | { action: "add_user"; user: string };
 
 export type ClientMessage =
   | { type: "key"; data: { key: GestureKey; down: boolean } }

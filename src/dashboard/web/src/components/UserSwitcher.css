@@ -1,0 +1,220 @@
+.usw {
+  position: relative;
+}
+
+.usw-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: -2px -8px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  color: var(--sage);
+  background: none;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.usw-btn b {
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.usw-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 150ms;
+}
+
+.usw-btn[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.usw-btn:hover:not(:disabled),
+.usw-btn[aria-expanded="true"] {
+  background: rgb(2 63 3 / 0.5);
+}
+
+.usw-pop {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #032105 0%, #010a01 100%);
+  box-shadow:
+    0 0 0 1px var(--forest),
+    0 24px 60px rgb(0 0 0 / 0.65),
+    0 0 40px rgb(3 230 3 / 0.12);
+  transform: translateX(-50%);
+  animation: usw-in 160ms var(--ease-focus);
+}
+
+@keyframes usw-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+
+.usw-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+
+.usw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.usw-row {
+  display: grid;
+  grid-template-columns: auto 1fr 18px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--ivory);
+  background: none;
+  cursor: pointer;
+}
+
+.usw-row:hover:not(:disabled) {
+  background: rgb(2 63 3 / 0.55);
+}
+
+.usw-row[data-current] {
+  background: rgb(3 230 3 / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(140 245 154 / 0.35);
+  cursor: default;
+}
+
+.usw-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.usw-id {
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+
+.usw-meta {
+  font-size: 14px;
+  color: var(--sage);
+  text-align: right;
+}
+
+.usw-check {
+  fill: none;
+  stroke: var(--glow);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.usw-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--mint);
+  background: rgb(2 63 3 / 0.35);
+  outline: 1px dashed var(--forest);
+  outline-offset: -1px;
+  cursor: pointer;
+}
+
+.usw-new svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.usw-new:hover {
+  background: rgb(2 63 3 / 0.6);
+}
+
+.usw-add {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.usw-input {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  text-transform: uppercase;
+  color: var(--ivory);
+  background: rgb(1 3 0 / 0.7);
+  box-shadow: inset 0 0 0 1px var(--glow);
+}
+
+.usw-input::placeholder {
+  text-transform: none;
+  color: var(--moss);
+}
+
+.usw-input:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--glow),
+    0 0 16px rgb(3 230 3 / 0.2);
+}
+
+.usw-go {
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--void);
+  background: var(--glow);
+  cursor: pointer;
+}
+
+.usw-go:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.usw-note {
+  font-size: 14px;
+  color: var(--moss);
+}
+
+.usw-note[data-error] {
+  color: var(--ember);
+}
