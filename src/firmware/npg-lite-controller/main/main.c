@@ -34,6 +34,7 @@
 #include "emg_signal.h"
 #include "emg_calibration.h"
 #include "emg_episode.h"
+#include "emg_gesture.h"
 #include "freertos/queue.h"
 #include <ctype.h>
 
@@ -403,6 +404,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   emg_signal_reset();
   emg_episode_reset();
+  emg_gesture_reset();
   continuous_adc_init();
   ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
 
@@ -425,6 +427,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         emg_calibration_reset();
         emg_activity_reset();
         emg_episode_reset();
+        emg_gesture_reset();
         previous_activity = NULL;
         emg_log_samples = 0;
 
@@ -545,6 +548,14 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
                      (unsigned long)episode_result.primary_samples,
                      (unsigned long)episode_result.opposite_samples,
                      (unsigned long)episode_result.ambiguous_samples);
+          }
+
+          emg_gesture_t gesture =
+              emg_gesture_update(activity, episode_event, &episode_result);
+
+          if (gesture != EMG_GESTURE_NONE) {
+            ESP_LOGI("MYOGRIP_EMG", "GESTURE %s",
+                     emg_gesture_name(gesture));
           }
 
           if (previous_activity == NULL ||

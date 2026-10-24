@@ -10,6 +10,7 @@ idf_component_register(
         "src/emg_signal.c"
         "src/emg_calibration.c"
         "src/emg_episode.c"
+        "src/emg_gesture.c"
 
     PRIV_REQUIRES
         bt
