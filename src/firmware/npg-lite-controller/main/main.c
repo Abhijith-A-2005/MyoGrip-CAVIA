@@ -206,18 +206,33 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   uint8_t counter = 0;
 
   int battery_reading = 0;
+  uint32_t samples_per_channel = 0;
+  uint32_t frames_since_log = 0;
 
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   continuous_adc_init();
-  adc_continuous_start(adc_handle);
+  ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
+
   while (1) {
-    while (streaming) {
-      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    // Sleep until the ADC reports available data.
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // Drain all buffered data before waiting again.
+    while (1) {
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 1);
 #endif
-      ret = adc_continuous_read(adc_handle, result, CONV_FRAME_SIZE, &size_ret,
-                                0);
+      size_ret = 0;
+      ret = adc_continuous_read(adc_handle, result, CONV_FRAME_SIZE,
+                                &size_ret, 0);
+
+      if (ret == ESP_ERR_TIMEOUT) {
+        // No buffered data remains. Wait for the next notification.
+#ifdef DEBUG
+        gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+        break;
+      }
 
       if (ret == ESP_OK && size_ret == CONV_FRAME_SIZE) {
         battery_reading = 0;
@@ -240,13 +255,31 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         }
         battery_reading = battery_reading / PACKET_LEN;
         battery_check(battery_reading);
-        // send over ble
-        struct os_mbuf *om =
-            ble_hs_mbuf_from_flat((void *)chords_packet, PACKET_SIZE);
-        if (om) {
-          int rc = ble_gatts_notify_custom(conn_handle, data_char_handle, om);
-          if (rc != 0) {
-            ESP_LOGE(TAG, "Notification failed, rc=%d", rc);
+
+        samples_per_channel += PACKET_LEN;
+        frames_since_log++;
+
+        // 50 frames × 25 samples = about five seconds at 250 Hz.
+        if (frames_since_log >= 50) {
+          ESP_LOGI("MYOGRIP_ADC",
+                   "samples/ch=%lu, streaming=%s",
+                   (unsigned long)samples_per_channel,
+                   streaming ? "on" : "off");
+          frames_since_log = 0;
+        }
+
+        // START/STOP controls transmission, not local acquisition.
+        if (streaming) {
+          struct os_mbuf *om =
+              ble_hs_mbuf_from_flat((void *)chords_packet, PACKET_SIZE);
+
+          if (om) {
+            int rc =
+                ble_gatts_notify_custom(conn_handle, data_char_handle, om);
+
+            if (rc != 0) {
+              ESP_LOGE(TAG, "Notification failed, rc=%d", rc);
+            }
           }
         }
 
@@ -258,8 +291,13 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 #endif
 
       } else {
-        ESP_LOGE("adc_conv_task", "Corrupted reading from adc, size_ret:%d",
-                 size_ret);
+        ESP_LOGE("adc_conv_task",
+                 "ADC read failed or incomplete: err=%s, bytes=%lu",
+                 esp_err_to_name(ret), (unsigned long)size_ret);
+#ifdef DEBUG
+        gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+        break;
       }
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 0);
@@ -340,6 +378,8 @@ void app_main(void) {
 
   /* Start NimBLE host task thread and return */
   xTaskCreate(nimble_host_task, "NimBLE Host", 4 * 1024, NULL, 5, NULL);
+
+  esp_log_level_set("MYOGRIP_ADC", ESP_LOG_INFO);
 
   xTaskCreate(adc_conv_task, "adc_conv_task", 4 * 1024, NULL, 5, NULL);
 
