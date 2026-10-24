@@ -183,6 +183,28 @@ void continuous_adc_init() {
       adc_continuous_register_event_callbacks(adc_handle, &cbs, NULL));
 }
 
+static uint32_t adc_restart_after_gap(void)
+{
+#ifdef DEBUG
+  gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+
+  ESP_ERROR_CHECK(adc_continuous_stop(adc_handle));
+  ESP_ERROR_CHECK(adc_continuous_flush_pool(adc_handle));
+
+  // Discard notifications belonging to the old acquisition.
+  ulTaskNotifyTake(pdTRUE, 0);
+
+  // Snapshot while stopped so later overflows remain detectable.
+  uint32_t handled_overflows = get_adc_pool_overflows();
+
+  ESP_LOGW("MYOGRIP_ADC",
+           "Acquisition gap: discarded buffered data; restarting ADC");
+
+  ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
+  return handled_overflows;
+}
+
 typedef struct {
   float voltage;
   uint8_t percent;
@@ -196,7 +218,7 @@ static const batt_point_t batt_table[] = {
 
 const uint8_t batt_table_len = sizeof(batt_table) / sizeof(batt_table[0]);
 
-void battery_check(int battery_reading) {
+static bool battery_check(int battery_reading) {
   float voltage = (battery_reading / 4095.0) * 3.3 - 0.14;
 #ifdef DEBUG
   ESP_LOGI("NPG-IDF", "vol bat: %f", voltage);
@@ -227,7 +249,10 @@ void battery_check(int battery_reading) {
     nimble_port_stop(); // stop ble
     adc_continuous_stop(adc_handle);
     ESP_LOGE("NPG-IDF", "Low Battery, please charge device before use");
+    return false;
   }
+
+  return true;
 }
 
 static void
@@ -244,6 +269,9 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   uint32_t frames_since_log = 0;
   uint32_t frame_bytes = 0;
   uint32_t partial_chunks = 0;
+  uint32_t handled_overflows = 0;
+  uint32_t recoveries = 0;
+  bool recovery_pending = false;
 
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   continuous_adc_init();
@@ -252,6 +280,19 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   while (1) {
     // Sleep until the ADC reports available data.
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+      if (recovery_pending ||
+          get_adc_pool_overflows() != handled_overflows) {
+        // Never join samples collected on opposite sides of a gap.
+        frame_bytes = 0;
+
+        // Mark a discontinuity in the existing BLE sample counter.
+        counter++;
+
+        handled_overflows = adc_restart_after_gap();
+        recoveries++;
+        recovery_pending = false;
+      }
 
     // Drain all buffered data before waiting again.
     while (1) {
@@ -265,6 +306,11 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
                                 result + frame_bytes,
                                 read_capacity,
                                 &size_ret, 0);
+
+      if (get_adc_pool_overflows() != handled_overflows) {
+        recovery_pending = true;
+        continue;
+      }
 
       if (ret == ESP_ERR_TIMEOUT) {
         // No buffered data remains. Wait for the next notification.
@@ -290,6 +336,24 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
           continue;
         }
 
+        bool channel_order_valid = true;
+
+        for (int n = 0; n < PACKET_LEN * NUM_CHANNELS; n++) {
+          const adc_digi_output_data_t *sample =
+              (const void *)&result[n * SOC_ADC_DIGI_RESULT_BYTES];
+
+          if (sample->type2.channel != channels[n % NUM_CHANNELS]) {
+            channel_order_valid = false;
+            break;
+          }
+        }
+
+        if (!channel_order_valid) {
+          ESP_LOGE("MYOGRIP_ADC", "Unexpected ADC channel order");
+          recovery_pending = true;
+          continue;
+        }
+
         // The complete frame is ready for the existing decoder.
         frame_bytes = 0;
         battery_reading = 0;
@@ -312,7 +376,11 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
           }
         }
         battery_reading = battery_reading / PACKET_LEN;
-        battery_check(battery_reading);
+        if (!battery_check(battery_reading)) {
+          // ADC was intentionally stopped. End this task without recovery.
+          vTaskDelete(NULL);
+          return;
+        }
 
         samples_per_channel += PACKET_LEN;
         frames_since_log++;
@@ -320,11 +388,13 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         // 50 frames × 25 samples = about five seconds at 250 Hz.
         if (frames_since_log >= 50) {
           ESP_LOGI("MYOGRIP_ADC",
-                   "samples/ch=%lu, streaming=%s, pool_ovf=%lu, partial=%lu",
+                   "samples/ch=%lu, streaming=%s, pool_ovf=%lu, "
+                   "partial=%lu, recoveries=%lu",
                    (unsigned long)samples_per_channel,
                    streaming ? "on" : "off",
                    (unsigned long)get_adc_pool_overflows(),
-                   (unsigned long)partial_chunks);
+                   (unsigned long)partial_chunks,
+                   (unsigned long)recoveries);
           frames_since_log = 0;
         }
 
@@ -358,7 +428,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 #ifdef DEBUG
         gpio_set_level(DEBUG_PIN_1, 0);
 #endif
-        break;
+        recovery_pending = true;
+        continue;
       }
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 0);
