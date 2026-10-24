@@ -7,6 +7,7 @@ idf_component_register(
         "src/neopixel.c"
         "src/myogrip_fsm.c"
         "src/myogrip_selftest.c"
+        "src/emg_signal.c"
 
     PRIV_REQUIRES
         bt

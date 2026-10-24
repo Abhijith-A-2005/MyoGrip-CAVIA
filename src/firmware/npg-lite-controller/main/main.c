@@ -30,8 +30,9 @@
 #include "neopixel.h"
 #include "soc/soc_caps.h"
 #include <stdint.h>
+#include "emg_signal.h"
 
-#define SAMPLING_RATE 250
+#define SAMPLING_RATE EMG_SAMPLE_RATE_HZ
 #define PACKET_LEN 25
 #define NUM_CHANNELS 4 // 3 BioAmp channels, 1 Battery channel
 
@@ -273,7 +274,11 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   uint32_t recoveries = 0;
   bool recovery_pending = false;
 
+  float emg_rms[EMG_CHANNEL_COUNT] = {0};
+  uint32_t emg_log_samples = 0;
+
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
+  emg_signal_reset();
   continuous_adc_init();
   ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
 
@@ -285,6 +290,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
           get_adc_pool_overflows() != handled_overflows) {
         // Never join samples collected on opposite sides of a gap.
         frame_bytes = 0;
+        emg_signal_reset();
+        emg_log_samples = 0;
 
         // Mark a discontinuity in the existing BLE sample counter.
         counter++;
@@ -359,19 +366,41 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         battery_reading = 0;
 
         for (int j = 0; j < PACKET_LEN; j++) {
+          uint16_t raw_emg[EMG_CHANNEL_COUNT] = {0};
+
           chords_packet[j][0] = counter;
           counter++;
+
           for (int i = 0; i < NUM_CHANNELS; i++) {
-            adc_digi_output_data_t *parsed_data =
-                (void *)&result[(i + j * NUM_CHANNELS) *
-                                SOC_ADC_DIGI_RESULT_BYTES];
-            if (i < 3) {
+            const adc_digi_output_data_t *parsed_data =
+                (const void *)&result[(i + j * NUM_CHANNELS) *
+                                      SOC_ADC_DIGI_RESULT_BYTES];
+
+            if (i < EMG_CHANNEL_COUNT) {
+              // Preprocessing uses raw ADC values, before BLE scaling.
+              raw_emg[i] = parsed_data->type2.data;
+
               adc_reading = MAP(parsed_data->type2.data);
               chords_packet[j][1 + i * 2] = (adc_reading >> 8) & 0xFF;
               chords_packet[j][2 + i * 2] = adc_reading & 0xFF;
             } else {
               adc_reading = MAP(parsed_data->type2.data * 2);
               battery_reading += adc_reading;
+            }
+          }
+
+          bool ready = emg_signal_process(raw_emg, emg_rms);
+
+          emg_log_samples++;
+          if (emg_log_samples >= EMG_LOG_INTERVAL_SAMPLES) {
+            emg_log_samples = 0;
+
+            if (ready) {
+              ESP_LOGI("MYOGRIP_EMG",
+                       "RMS flex=%.1f, ext=%.1f, ch3=%.1f",
+                       (double)emg_rms[0],
+                       (double)emg_rms[1],
+                       (double)emg_rms[2]);
             }
           }
         }
@@ -512,6 +541,8 @@ void app_main(void) {
   xTaskCreate(nimble_host_task, "NimBLE Host", 4 * 1024, NULL, 5, NULL);
 
   esp_log_level_set("MYOGRIP_ADC", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_EMG", ESP_LOG_INFO);
 
   xTaskCreate(adc_conv_task, "adc_conv_task", 4 * 1024, NULL, 5, NULL);
 
