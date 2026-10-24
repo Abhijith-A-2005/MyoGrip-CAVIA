@@ -8,6 +8,7 @@ idf_component_register(
         "src/myogrip_fsm.c"
         "src/myogrip_selftest.c"
         "src/emg_signal.c"
+        "src/emg_calibration.c"
 
     PRIV_REQUIRES
         bt

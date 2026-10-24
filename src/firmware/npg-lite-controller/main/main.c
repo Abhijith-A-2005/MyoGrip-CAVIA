@@ -31,8 +31,10 @@
 #include "soc/soc_caps.h"
 #include <stdint.h>
 #include "emg_signal.h"
+#include "emg_calibration.h"
 #include "freertos/queue.h"
 #include <ctype.h>
+
 
 #define SAMPLING_RATE EMG_SAMPLE_RATE_HZ
 #define PACKET_LEN 25
@@ -330,7 +332,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 
     char command;
     while (xQueueReceive(emg_command_queue, &command, 0) == pdPASS) {
-      ESP_LOGI("MYOGRIP_CONSOLE", "Input test: received '%c'", command);
+      emg_calibration_command(command);
     }
 
 
@@ -339,6 +341,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         // Never join samples collected on opposite sides of a gap.
         frame_bytes = 0;
         emg_signal_reset();
+        emg_calibration_reset();
         emg_log_samples = 0;
 
         // Mark a discontinuity in the existing BLE sample counter.
@@ -438,6 +441,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
           }
 
           bool ready = emg_signal_process(raw_emg, emg_rms);
+          emg_calibration_process(emg_rms, ready);
 
           emg_log_samples++;
           if (emg_log_samples >= EMG_LOG_INTERVAL_SAMPLES) {
@@ -593,6 +597,8 @@ void app_main(void) {
   esp_log_level_set("MYOGRIP_EMG", ESP_LOG_INFO);
 
   esp_log_level_set("MYOGRIP_CONSOLE", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_CAL", ESP_LOG_INFO);
 
   emg_command_queue = xQueueCreate(8, sizeof(char));
   ESP_ERROR_CHECK(emg_command_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
