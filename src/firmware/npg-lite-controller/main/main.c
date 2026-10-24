@@ -73,6 +73,39 @@ static void nimble_host_config_init(void);
 static void nimble_host_task(void *param);
 
 static TaskHandle_t adc_conv_task_handle;
+static portMUX_TYPE adc_stats_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t adc_pool_overflows = 0;
+
+static uint32_t get_adc_pool_overflows(void)
+{
+  // The interrupt updates this counter; read it under the same lock.
+  portENTER_CRITICAL(&adc_stats_lock);
+  uint32_t count = adc_pool_overflows;
+  portEXIT_CRITICAL(&adc_stats_lock);
+
+  return count;
+}
+
+static bool IRAM_ATTR pool_overflow_cb(
+    adc_continuous_handle_t handle,
+    const adc_continuous_evt_data_t *edata,
+    void *user_data)
+{
+  (void)handle;
+  (void)edata;
+  (void)user_data;
+
+  portENTER_CRITICAL_ISR(&adc_stats_lock);
+  adc_pool_overflows++;
+  portEXIT_CRITICAL_ISR(&adc_stats_lock);
+
+  // Wake the acquisition task so it can drain buffered data.
+  BaseType_t must_yield = pdFALSE;
+  vTaskNotifyGiveFromISR(adc_conv_task_handle, &must_yield);
+
+  return must_yield == pdTRUE;
+}
+
 static bool IRAM_ATTR conv_done_cb(adc_continuous_handle_t handle,
                                    const adc_continuous_evt_data_t *edata,
                                    void *user_data) {
@@ -144,6 +177,7 @@ void continuous_adc_init() {
   ESP_ERROR_CHECK(adc_continuous_config(adc_handle, &adc_conf));
   adc_continuous_evt_cbs_t cbs = {
       .on_conv_done = conv_done_cb,
+      .on_pool_ovf = pool_overflow_cb,
   };
   ESP_ERROR_CHECK(
       adc_continuous_register_event_callbacks(adc_handle, &cbs, NULL));
@@ -262,9 +296,10 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         // 50 frames × 25 samples = about five seconds at 250 Hz.
         if (frames_since_log >= 50) {
           ESP_LOGI("MYOGRIP_ADC",
-                   "samples/ch=%lu, streaming=%s",
+                   "samples/ch=%lu, streaming=%s, pool_ovf=%lu",
                    (unsigned long)samples_per_channel,
-                   streaming ? "on" : "off");
+                   streaming ? "on" : "off",
+                   (unsigned long)get_adc_pool_overflows());
           frames_since_log = 0;
         }
 
