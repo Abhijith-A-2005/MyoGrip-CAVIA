@@ -550,8 +550,19 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
                      (unsigned long)episode_result.ambiguous_samples);
           }
 
-          emg_gesture_t gesture =
-              emg_gesture_update(activity, episode_event, &episode_result);
+          emg_thresholds_t gesture_thresholds;
+          emg_gesture_t gesture = EMG_GESTURE_NONE;
+
+          if (emg_calibration_get_thresholds(&gesture_thresholds)) {
+            gesture = emg_gesture_update(
+                activity,
+                episode_event,
+                &episode_result,
+                emg_rms[1],
+                gesture_thresholds.high_extension);
+          } else {
+            emg_gesture_reset();
+          }
 
           if (gesture != EMG_GESTURE_NONE) {
             ESP_LOGI("MYOGRIP_EMG", "GESTURE %s",

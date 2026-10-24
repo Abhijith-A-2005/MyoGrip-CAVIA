@@ -41,5 +41,6 @@
 #define EMG_LONG_MS 1200
 #define EMG_RELEASE_MS 120
 #define EMG_AMBIGUITY_LIMIT_MS 80
+#define EMG_HE_DWELL_MS 120
 
 #endif

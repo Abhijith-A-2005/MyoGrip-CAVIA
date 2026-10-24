@@ -9,6 +9,7 @@ typedef enum {
   EMG_GESTURE_SE,
   EMG_GESTURE_LF,
   EMG_GESTURE_LE,
+  EMG_GESTURE_HE,
   EMG_GESTURE_REJECTED
 } emg_gesture_t;
 
@@ -16,7 +17,8 @@ void emg_gesture_reset(void);
 
 emg_gesture_t emg_gesture_update(const char *activity,
                                 emg_episode_event_t boundary,
-                                const emg_episode_t *episode);
+                                const emg_episode_t *episode,
+                                float ext_rms, float high_threshold);
 
 const char *emg_gesture_name(emg_gesture_t gesture);
 

@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 static struct {
   char direction;
@@ -10,6 +11,7 @@ static struct {
   unsigned onset_run;
   unsigned nonprimary_run;
   unsigned ambiguous;
+  unsigned high_run;
   bool active;
   bool qualified;
   bool rejected;
@@ -29,6 +31,7 @@ const char *emg_gesture_name(emg_gesture_t gesture)
     case EMG_GESTURE_SE: return "SE";
     case EMG_GESTURE_LF: return "LF";
     case EMG_GESTURE_LE: return "LE";
+    case EMG_GESTURE_HE: return "HE";
     case EMG_GESTURE_REJECTED: return "REJECTED";
     default: return "NONE";
   }
@@ -36,11 +39,18 @@ const char *emg_gesture_name(emg_gesture_t gesture)
 
 emg_gesture_t emg_gesture_update(const char *activity,
                                 emg_episode_event_t boundary,
-                                const emg_episode_t *episode)
+                                const emg_episode_t *episode,
+                                float ext_rms, float high_threshold)
 {
   if (activity == NULL ||
       strcmp(activity, "UNCALIBRATED") == 0 ||
       strcmp(activity, "WARMUP") == 0) {
+    emg_gesture_reset();
+    return EMG_GESTURE_NONE;
+  }
+
+  if (!isfinite(ext_rms) || ext_rms < 0.0f ||
+      !isfinite(high_threshold) || high_threshold <= 0.0f) {
     emg_gesture_reset();
     return EMG_GESTURE_NONE;
   }
@@ -65,13 +75,19 @@ emg_gesture_t emg_gesture_update(const char *activity,
     emg_gesture_t result = EMG_GESTURE_NONE;
 
     if (!candidate.sent) {
-      if (!candidate.rejected && candidate.qualified &&
-          candidate.primary >= EMG_MS_TO_SAMPLES(EMG_SHORT_MIN_MS) &&
-          candidate.primary <= EMG_MS_TO_SAMPLES(EMG_SHORT_MAX_MS)) {
-        result = candidate.direction == 'F'
-            ? EMG_GESTURE_SF : EMG_GESTURE_SE;
-      } else {
-        result = EMG_GESTURE_REJECTED;
+      result = EMG_GESTURE_REJECTED;
+
+      if (!candidate.rejected && candidate.qualified) {
+        if (candidate.primary >= EMG_MS_TO_SAMPLES(EMG_LONG_MS)) {
+          // Resolve a long gesture deferred by an unfinished HE burst.
+          result = candidate.direction == 'F'
+              ? EMG_GESTURE_LF : EMG_GESTURE_LE;
+        } else if (
+            candidate.primary >= EMG_MS_TO_SAMPLES(EMG_SHORT_MIN_MS) &&
+            candidate.primary <= EMG_MS_TO_SAMPLES(EMG_SHORT_MAX_MS)) {
+          result = candidate.direction == 'F'
+              ? EMG_GESTURE_SF : EMG_GESTURE_SE;
+        }
       }
     }
 
@@ -97,7 +113,20 @@ emg_gesture_t emg_gesture_update(const char *activity,
           candidate.onset_run >= EMG_MS_TO_SAMPLES(EMG_ONSET_MS);
     }
 
-    if (candidate.qualified &&
+    if (candidate.direction == 'E' && ext_rms >= high_threshold) {
+      candidate.high_run++;
+
+      if (candidate.qualified &&
+          candidate.high_run >= EMG_MS_TO_SAMPLES(EMG_HE_DWELL_MS)) {
+        candidate.sent = true;
+        return EMG_GESTURE_HE;
+      }
+    } else {
+      candidate.high_run = 0;
+    }
+
+    // Give an ongoing high-extension burst time to qualify first.
+    if (candidate.qualified && candidate.high_run == 0 &&
         candidate.primary >= EMG_MS_TO_SAMPLES(EMG_LONG_MS)) {
       candidate.sent = true;
 
@@ -105,6 +134,7 @@ emg_gesture_t emg_gesture_update(const char *activity,
           ? EMG_GESTURE_LF : EMG_GESTURE_LE;
     }
   } else {
+    candidate.high_run = 0;
     candidate.onset_run = 0;
 
     if (!candidate.qualified) {
