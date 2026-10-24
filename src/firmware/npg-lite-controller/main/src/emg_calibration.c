@@ -19,6 +19,8 @@ typedef struct {
 } calibration_summary_t;
 
 static calibration_summary_t summaries[4];
+static emg_thresholds_t thresholds;
+static bool thresholds_valid;
 
 static float observations[EMG_CHANNEL_COUNT][EMG_CAL_POINTS];
 static float sorted[EMG_CAL_POINTS];
@@ -53,6 +55,7 @@ static int compare_float(const void *left, const void *right)
 
 void emg_calibration_reset(void)
 {
+  thresholds_valid = false;
   if (active_capture >= 0) {
     ESP_LOGW(TAG, "Capture aborted by acquisition gap");
   }
@@ -64,8 +67,59 @@ void emg_calibration_reset(void)
   memset(summaries, 0, sizeof(summaries));
 }
 
+bool emg_calibration_get_thresholds(emg_thresholds_t *out)
+{
+  if (!thresholds_valid || out == NULL) {
+    return false;
+  }
+
+  *out = thresholds;
+  return true;
+}
+
+static bool derive_thresholds(const float rest[2],
+                              const float reference[2],
+                              float normal_ext_p95,
+                              float high_ext_median)
+{
+  emg_thresholds_t candidate = {0};
+
+  for (unsigned ch = 0; ch < 2; ch++) {
+    float span = reference[ch] - rest[ch];
+
+    candidate.rest[ch] = rest[ch];
+    candidate.reference[ch] = reference[ch];
+    candidate.on[ch] = rest[ch] + EMG_ACTIVATION_FRACTION * span;
+    candidate.off[ch] = rest[ch] + EMG_RELEASE_FRACTION * span;
+
+    if (!isfinite(candidate.on[ch]) ||
+        !isfinite(candidate.off[ch]) ||
+        !(rest[ch] < candidate.off[ch] &&
+          candidate.off[ch] < candidate.on[ch] &&
+          candidate.on[ch] < reference[ch])) {
+      return false;
+    }
+  }
+
+  // Midpoint between normal-extension p95 and high-extension median.
+  candidate.high_extension =
+      normal_ext_p95 + 0.5f * (high_ext_median - normal_ext_p95);
+
+  if (!isfinite(candidate.high_extension) ||
+      !(normal_ext_p95 < candidate.high_extension &&
+        candidate.high_extension < high_ext_median)) {
+    return false;
+  }
+
+  // Publish only after every derived value passes its checks.
+  thresholds = candidate;
+  thresholds_valid = true;
+  return true;
+}
+
 static bool validate_calibration(void)
 {
+  thresholds_valid = false;
   for (int capture = 0; capture < 4; capture++) {
     if (!summaries[capture].valid) {
       ESP_LOGW(TAG, "Missing capture: %s", names[capture]);
@@ -137,12 +191,29 @@ static bool validate_calibration(void)
     return false;
   }
 
+  if (!derive_thresholds(rest, reference,
+                         normal_ext_p95, high_ext_median)) {
+    ESP_LOGE(TAG, "Invalid derived thresholds; check configuration");
+    return false;
+  }
+
   ESP_LOGI(TAG, "Reference checks PASSED");
 
   ESP_LOGI(TAG,
            "Normalized overlap: ext_during_flex=%.2f "
            "flex_during_ext=%.2f",
            (double)ext_during_flex, (double)flex_during_ext);
+
+  ESP_LOGI(TAG, "Flexor thresholds: ON=%.1f OFF=%.1f",
+           (double)thresholds.on[0],
+           (double)thresholds.off[0]);
+
+  ESP_LOGI(TAG, "Extensor thresholds: ON=%.1f OFF=%.1f",
+           (double)thresholds.on[1],
+           (double)thresholds.off[1]);
+
+  ESP_LOGI(TAG, "High-extension threshold: %.1f",
+           (double)thresholds.high_extension);
 
   return true;
 }
@@ -157,6 +228,7 @@ void emg_calibration_command(char command)
   }
 
   if (command == 'x') {
+    thresholds_valid = false;
     if (active_capture >= 0) {
       ESP_LOGI(TAG, "%s capture cancelled", names[active_capture]);
     } else {
@@ -194,6 +266,7 @@ void emg_calibration_command(char command)
     return;
   }
 
+  thresholds_valid = false;
   summaries[capture].valid = false;
   active_capture = capture;
   preparation_left = EMG_CAL_PREP_SAMPLES;

@@ -24,4 +24,8 @@
 #define EMG_CAL_MIN_HE_RATIO 1.30f
 #define EMG_CAL_DOMINANCE_RATIO 2.0f
 
+// Provisional positions between resting p95 and contraction median.
+#define EMG_ACTIVATION_FRACTION 0.35f
+#define EMG_RELEASE_FRACTION 0.15f
+
 #endif
