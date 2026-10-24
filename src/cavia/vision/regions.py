@@ -9,6 +9,7 @@ FUNCTIONAL_REGIONS = {
     "remote":    ["side_edge", "lower_support"], 
     "book":      ["side_edge", "cover_face"],       
 }
+UNKNOWN_REGION = "unknown"
 
 def get_candidate_regions(class_name):
    

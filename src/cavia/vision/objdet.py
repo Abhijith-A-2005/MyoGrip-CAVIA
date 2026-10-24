@@ -15,6 +15,7 @@ from detection import (
 )
 from cavia.runtime.vision_link import DetectionControl, frame_wanted, publish_frame, publish_result
 
+
 # Camera window title
 WINDOW = "CAVIA - Object Detection"
 
@@ -85,7 +86,7 @@ def get_contour_and_orientation(frame, box):
     return largest, normalize_angle(rect)
 
 
-def draw_reticle(frame):
+def draw_cross_reticle(frame):
     h, w = frame.shape[:2]
     cx, cy = w // 2, h // 2
     size = 20
@@ -94,8 +95,14 @@ def draw_reticle(frame):
     cv2.line(frame, (cx - size, cy), (cx + size, cy), color, 2)
     cv2.line(frame, (cx, cy - size), (cx, cy + size), color, 2)
     return cx, cy
+def draw_circle_reticle(frame):
+    h, w = frame.shape[:2]
+    center = (w // 2, h // 2)
+    r = circle_radius(frame.shape)
+    cv2.circle(frame, center, r, (0, 0, 255), 2)
+    return center, r
+tracker = TwoStageTracker()
 
-tracker = RegionTracker()
 last_sent = None
 
 def overlay(out, candidate, frame_shape):
@@ -103,7 +110,7 @@ def overlay(out, candidate, frame_shape):
     box = region_box = None
     if candidate is not None and candidate["object"] == out["object"]:
         box = normalize_rect(candidate["box"], frame_shape)
-        if candidate["region"] == out["region"]:
+        if candidate["region"] == out["region"] and candidate.get("region_box"):
             region_box = normalize_rect(candidate["region_box"], frame_shape)
     return {"box": box, "region_box": region_box}
 
@@ -256,7 +263,11 @@ try:
 
         # frame stays raw; all drawing goes on display_frame
         display_frame = frame.copy()
-        reticle_point = draw_reticle(display_frame)
+        stage = tracker.stage                    # read once per frame
+        if stage == 1:
+            reticle_point, reticle_r = draw_circle_reticle(display_frame)    # circle only, no cross
+        else:
+            reticle_point = draw_cross_reticle(display_frame)                # cross only, no circle
 
         if detection_control.snapshot() != (False, generation):
             continue
@@ -267,12 +278,13 @@ try:
         if detection_control.snapshot() != (False, generation):
             continue
 
-        candidate = select_candidate(
-            results.boxes,
-            model.names,
-            frame.shape,
-            reticle_point,
-        )
+        if stage == 1:
+            candidate = select_object_candidate(
+                results.boxes, model.names, frame.shape, reticle_point, reticle_r)
+        else:
+            candidate = select_candidate(
+                results.boxes, model.names, frame.shape, reticle_point,
+                only_object=tracker.locked_object)
 
         for box in results.boxes:
             cls_name = model.names[int(box.cls[0])]
@@ -286,7 +298,11 @@ try:
             if x2 <= x1 or y2 <= y1:
                 continue
 
-            targeted = reticle_overlaps_box(reticle_point, (x1, y1, x2, y2))
+            if stage == 1:
+                targeted = box_center_in_circle((x1, y1, x2, y2), reticle_point, reticle_r)
+            else:
+                targeted = (cls_name == tracker.locked_object
+                            and reticle_overlaps_box(reticle_point, (x1, y1, x2, y2)))
             box_color = COLOR_TARGETED if targeted else COLOR_NOT_TARGETED
 
             cv2.rectangle(display_frame, (x1, y1), (x2, y2), box_color, 2)
@@ -325,12 +341,15 @@ try:
             **overlay(out, candidate, frame.shape),
         })
 
-        color = STATE_COLORS[out["state"]]
-        cv2.putText(display_frame, out["state"], (10, 25),
+        shown = tracker.display_out              # what is being worked on right now
+        color = STATE_COLORS[shown["state"]]
+        label = "STAGE 1 - OBJECT" if stage == 1 else "STAGE 2 - REGION"
+        cv2.putText(display_frame, f"{shown['state']}  |  {label}", (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-        if out["object"]:
+        obj = shown["object"] or tracker.locked_object
+        if obj:
             cv2.putText(display_frame,
-                        f"{out['object']} / {out['region']}  conf {out['region_confidence']:.2f}",
+                        f"{obj} / {shown['region'] or UNKNOWN_REGION}  conf {shown['region_confidence']:.2f}",
                         (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
 
