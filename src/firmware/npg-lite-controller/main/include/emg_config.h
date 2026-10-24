@@ -40,7 +40,9 @@
 #define EMG_SHORT_MAX_MS 900
 #define EMG_LONG_MS 1200
 #define EMG_RELEASE_MS 120
-#define EMG_AMBIGUITY_LIMIT_MS 80
+// Provisional limits for pending gesture candidates.
+#define EMG_AMBIGUITY_RUN_LIMIT_MS 120
+#define EMG_AMBIGUITY_TOTAL_LIMIT_MS 240
 #define EMG_HE_DWELL_MS 120
 
 #endif

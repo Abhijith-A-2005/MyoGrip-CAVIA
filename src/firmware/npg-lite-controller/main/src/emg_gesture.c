@@ -11,6 +11,7 @@ static struct {
   unsigned onset_run;
   unsigned nonprimary_run;
   unsigned ambiguous;
+  unsigned ambiguous_run;
   unsigned high_run;
   bool active;
   bool qualified;
@@ -104,6 +105,7 @@ emg_gesture_t emg_gesture_update(const char *activity,
       : strcmp(activity, "EXT_ACTIVE") == 0;
 
   if (primary) {
+    candidate.ambiguous_run = 0;
     candidate.nonprimary_run = 0;
     candidate.primary++;
 
@@ -143,11 +145,16 @@ emg_gesture_t emg_gesture_update(const char *activity,
 
     if (strcmp(activity, "INVALID") == 0) {
       candidate.ambiguous++;
+      candidate.ambiguous_run++;
 
-      if (candidate.ambiguous >=
-          EMG_MS_TO_SAMPLES(EMG_AMBIGUITY_LIMIT_MS)) {
+      if (candidate.ambiguous_run >=
+              EMG_MS_TO_SAMPLES(EMG_AMBIGUITY_RUN_LIMIT_MS) ||
+          candidate.ambiguous >=
+              EMG_MS_TO_SAMPLES(EMG_AMBIGUITY_TOTAL_LIMIT_MS)) {
         candidate.rejected = true;
       }
+    } else {
+      candidate.ambiguous_run = 0;
     }
 
     candidate.nonprimary_run++;
