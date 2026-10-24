@@ -67,6 +67,54 @@ static const test_case_t tests[] = {
     {MG_HE,          MG_HOME,     0, false}
 };
 
+static bool menu_snapshot_selftest(void)
+{
+    mg_fsm_t f;
+    mg_menu_t menu = {
+        .menu_id = 42,
+        .adaptive = {MG_GRIP_LATERAL},
+        .adaptive_count = 1,
+        .full = {MG_GRIP_POWER, MG_GRIP_PINCH,
+                 MG_GRIP_TRIPOD, MG_GRIP_LATERAL},
+        .full_count = 4,
+        .full_menu_only = false
+    };
+
+    mg_init(&f);
+    bool ok = mg_load_menu(&f, &menu);
+    ok &= f.state == MG_ADAPTIVE && f.active_grip == MG_GRIP_NONE;
+    ok &= mg_selected_grip(&f) == MG_GRIP_LATERAL;
+
+    // Changing the caller's buffer must not change the frozen snapshot.
+    menu.menu_id = 43;
+    menu.adaptive[0] = MG_GRIP_PINCH;
+    ok &= mg_selected_grip(&f) == MG_GRIP_LATERAL;
+    ok &= !mg_load_menu(&f, &menu) && f.menu.menu_id == 42;
+
+    mg_step(&f, MG_SF);
+    ok &= f.selected == 0;  // One item still requires LF to confirm.
+    mg_step(&f, MG_LF);
+    ok &= f.state == MG_HOLDING && f.active_grip == MG_GRIP_LATERAL;
+    ok &= !mg_load_menu(&f, &menu);
+
+    mg_init(&f);
+    menu.full_menu_only = true;
+    ok &= mg_load_menu(&f, &menu) && f.state == MG_FULL;
+    ok &= mg_selected_grip(&f) == MG_GRIP_POWER;
+
+    mg_init(&f);
+    menu.full_menu_only = false;
+    menu.adaptive_count = 0;
+    ok &= mg_load_menu(&f, &menu) && f.state == MG_FULL;
+
+    mg_init(&f);
+    menu.full[1] = menu.full[0];  // Duplicate grip: reject atomically.
+    ok &= !mg_load_menu(&f, &menu);
+    ok &= f.state == MG_HOME && !f.menu_loaded;
+
+    return ok;
+}
+
 static void selftest_task(void *arg)
 {
     (void)arg;
@@ -85,6 +133,8 @@ static void selftest_task(void *arg)
         cycle++;
 
         ESP_LOGI(TAG, "SIMULATION ONLY: cycle %u", cycle);
+        bool menu_ok = menu_snapshot_selftest();
+        ESP_LOGI(TAG, "MENU SNAPSHOTS: %s", menu_ok ? "PASS" : "FAIL");
 
         for (unsigned i = 0; i < total; i++) {
             const test_case_t *t = &tests[i];
@@ -141,10 +191,13 @@ static void selftest_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
 
-        if (passed == total) {
-            ESP_LOGI(TAG, "RESULT: %u/%u PASS", passed, total);
+         if (passed == total && menu_ok) {
+            ESP_LOGI(TAG, "RESULT: %u/%u PASS; menu snapshots PASS",
+                     passed, total);
         } else {
-            ESP_LOGE(TAG, "RESULT: %u/%u PASS", passed, total);
+            ESP_LOGE(TAG,
+                     "RESULT: %u/%u state checks passed; menu snapshots %s",
+                     passed, total, menu_ok ? "PASS" : "FAIL");
         }
 
         vTaskDelay(pdMS_TO_TICKS(5000));

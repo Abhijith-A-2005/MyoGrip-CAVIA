@@ -7,10 +7,11 @@
 /* Fixed test menus only. Real CAVIA menus will come later. */
 #define MG_ADAPTIVE_COUNT 3
 #define MG_FULL_COUNT 4
+#define MG_MENU_CAPACITY 4
 
 typedef enum {
     MG_GRIP_NONE = -1,
-    MG_GRIP_POWER,
+    MG_GRIP_POWER = 1,
     MG_GRIP_PINCH,
     MG_GRIP_TRIPOD,
     MG_GRIP_LATERAL
@@ -43,7 +44,18 @@ typedef enum {
 } mg_event_t;
 
 typedef struct {
+    uint32_t menu_id;
+    mg_grip_t adaptive[MG_MENU_CAPACITY];
+    uint8_t adaptive_count;
+    mg_grip_t full[MG_MENU_CAPACITY];
+    uint8_t full_count;
+    bool full_menu_only;
+} mg_menu_t;
+
+typedef struct {
     mg_state_t state;
+    mg_menu_t menu;
+    bool menu_loaded;
 
     /* Zero-based index into the current/test-selected menu. */
     uint8_t selected;
@@ -57,6 +69,7 @@ typedef struct {
 
 void mg_init(mg_fsm_t *fsm);
 void mg_step(mg_fsm_t *fsm, mg_event_t event);
+bool mg_load_menu(mg_fsm_t *fsm, const mg_menu_t *menu);
 
 mg_grip_t mg_selected_grip(const mg_fsm_t *fsm);
 const char *mg_grip_name(mg_grip_t grip);

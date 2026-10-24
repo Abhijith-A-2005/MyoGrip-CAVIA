@@ -1,27 +1,91 @@
 #include "myogrip_fsm.h"
 #include <stddef.h>
+#include <string.h>
 
-/* Development menus matching the existing shared test sequence. */
-static const mg_grip_t adaptive_grips[MG_ADAPTIVE_COUNT] = {
-    MG_GRIP_POWER, MG_GRIP_LATERAL, MG_GRIP_PINCH
+/* MG_MENU_READY remains a development shortcut for the old selftest. */
+static const mg_menu_t demo_menu = {
+    .menu_id = 1,
+    .adaptive = {MG_GRIP_POWER, MG_GRIP_LATERAL, MG_GRIP_PINCH},
+    .adaptive_count = MG_ADAPTIVE_COUNT,
+    .full = {MG_GRIP_POWER, MG_GRIP_PINCH, MG_GRIP_TRIPOD, MG_GRIP_LATERAL},
+    .full_count = MG_FULL_COUNT,
+    .full_menu_only = false
 };
 
-static const mg_grip_t full_grips[MG_FULL_COUNT] = {
-    MG_GRIP_POWER, MG_GRIP_PINCH, MG_GRIP_TRIPOD, MG_GRIP_LATERAL
-};
+static bool valid_grips(const mg_grip_t *items, unsigned count)
+{
+    for (unsigned i = 0; i < count; i++) {
+        if (items[i] < MG_GRIP_POWER || items[i] > MG_GRIP_LATERAL) {
+            return false;
+        }
+
+        for (unsigned j = 0; j < i; j++) {
+            if (items[i] == items[j]) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool mg_load_menu(mg_fsm_t *f, const mg_menu_t *menu)
+{
+    if (f == NULL || menu == NULL || f->state != MG_HOME) {
+        return false;
+    }
+
+    if (menu->adaptive_count > MG_MENU_CAPACITY ||
+        menu->full_count == 0 || menu->full_count > MG_MENU_CAPACITY) {
+        return false;
+    }
+
+    if (!valid_grips(menu->adaptive, menu->adaptive_count) ||
+        !valid_grips(menu->full, menu->full_count)) {
+        return false;
+    }
+
+    // Every adaptive choice must belong to the calibrated full list.
+    for (unsigned i = 0; i < menu->adaptive_count; i++) {
+        bool found = false;
+
+        for (unsigned j = 0; j < menu->full_count; j++) {
+            if (menu->adaptive[i] == menu->full[j]) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return false;
+        }
+    }
+
+    // Copy only after every validation check succeeds.
+    f->menu = *menu;
+    f->menu_loaded = true;
+    f->selected = 0;
+    f->active_grip = MG_GRIP_NONE;
+    f->wait_release = false;
+
+    f->state = menu->full_menu_only || menu->adaptive_count == 0
+        ? MG_FULL : MG_ADAPTIVE;
+
+    return true;
+}
 
 mg_grip_t mg_selected_grip(const mg_fsm_t *f)
 {
-    if (f == NULL) {
+    if (f == NULL || !f->menu_loaded) {
         return MG_GRIP_NONE;
     }
 
-    if (f->state == MG_ADAPTIVE && f->selected < MG_ADAPTIVE_COUNT) {
-        return adaptive_grips[f->selected];
+    if (f->state == MG_ADAPTIVE && f->selected < f->menu.adaptive_count) {
+        return f->menu.adaptive[f->selected];
     }
 
-    if (f->state == MG_FULL && f->selected < MG_FULL_COUNT) {
-        return full_grips[f->selected];
+    if (f->state == MG_FULL && f->selected < f->menu.full_count) {
+        return f->menu.full[f->selected];
     }
 
     if (f->state == MG_HOLDING || f->state == MG_CLOSING ||
@@ -45,9 +109,8 @@ const char *mg_grip_name(mg_grip_t grip)
 
 void mg_init(mg_fsm_t *f)
 {
+    memset(f, 0, sizeof(*f));
     f->state = MG_HOME;
-    f->selected = 0;
-    f->wait_release = false;
     f->active_grip = MG_GRIP_NONE;
 }
 
@@ -56,9 +119,7 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
     /* HOME: gestures cannot confirm anything without a menu. */
     if (f->state == MG_HOME) {
         if (event == MG_MENU_READY) {
-            f->state = MG_ADAPTIVE;
-            f->selected = 0;
-            f->wait_release = false;
+            (void)mg_load_menu(f, &demo_menu);
         }
         return;
     }
@@ -66,8 +127,12 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
     /* MENU NAVIGATION */
     if (f->state == MG_ADAPTIVE || f->state == MG_FULL) {
         unsigned count = f->state == MG_ADAPTIVE
-                             ? MG_ADAPTIVE_COUNT
-                             : MG_FULL_COUNT;
+                             ? f->menu.adaptive_count
+                             : f->menu.full_count;
+
+        if (count == 0) {
+            return;
+        }
 
         switch (event) {
         case MG_SF:
