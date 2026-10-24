@@ -25,6 +25,7 @@
 #include "esp_pm.h"
 #include "gap.h"
 #include "gatt.h"
+#include <math.h>
 #include "hal/adc_types.h"
 #include "hal/gpio_types.h"
 #include "neopixel.h"
@@ -300,6 +301,82 @@ static bool battery_check(int battery_reading) {
   return true;
 }
 
+static bool flex_active;
+static bool ext_active;
+
+static void emg_activity_reset(void)
+{
+  flex_active = false;
+  ext_active = false;
+}
+
+static const char *emg_activity_update(
+    const float rms[EMG_CHANNEL_COUNT], bool ready)
+{
+  emg_thresholds_t thresholds;
+
+  if (!emg_calibration_get_thresholds(&thresholds)) {
+    emg_activity_reset();
+    return "UNCALIBRATED";
+  }
+
+  if (!ready) {
+    emg_activity_reset();
+    return "WARMUP";
+  }
+
+  for (unsigned ch = 0; ch < 2; ch++) {
+    if (!isfinite(rms[ch]) || rms[ch] < 0.0f) {
+      emg_activity_reset();
+      return "INVALID";
+    }
+  }
+
+  // Once active, require crossing the lower OFF threshold to release.
+  flex_active = flex_active
+      ? rms[0] > thresholds.off[0]
+      : rms[0] >= thresholds.on[0];
+
+  ext_active = ext_active
+      ? rms[1] > thresholds.off[1]
+      : rms[1] >= thresholds.on[1];
+
+  if (!flex_active && !ext_active) {
+    return "REST";
+  }
+
+  if (flex_active && !ext_active) {
+    return "FLEX_ACTIVE";
+  }
+
+  if (ext_active && !flex_active) {
+    return "EXT_ACTIVE";
+  }
+
+  // Both channels are active: compare their calibrated scales.
+  float flex_normalized = fmaxf(
+      0.0f,
+      (rms[0] - thresholds.rest[0]) /
+      (thresholds.reference[0] - thresholds.rest[0]));
+
+  float ext_normalized = fmaxf(
+      0.0f,
+      (rms[1] - thresholds.rest[1]) /
+      (thresholds.reference[1] - thresholds.rest[1]));
+
+  if (flex_normalized >
+      EMG_CAL_DOMINANCE_RATIO * ext_normalized) {
+    return "FLEX_ACTIVE";
+  }
+
+  if (ext_normalized >
+      EMG_CAL_DOMINANCE_RATIO * flex_normalized) {
+    return "EXT_ACTIVE";
+  }
+
+  return "INVALID";
+}
+
 static void
 adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   esp_err_t ret = ESP_OK;
@@ -343,6 +420,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         frame_bytes = 0;
         emg_signal_reset();
         emg_calibration_reset();
+        emg_activity_reset();
         emg_log_samples = 0;
 
         // Mark a discontinuity in the existing BLE sample counter.
@@ -443,6 +521,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 
           bool ready = emg_signal_process(raw_emg, emg_rms);
           emg_calibration_process(emg_rms, ready);
+          const char *activity = emg_activity_update(emg_rms, ready);
 
           emg_log_samples++;
           if (emg_log_samples >= EMG_LOG_INTERVAL_SAMPLES) {
@@ -450,7 +529,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 
             if (ready) {
               ESP_LOGI("MYOGRIP_EMG",
-                       "RMS flex=%.1f, ext=%.1f, ch3=%.1f",
+                       "%s | RMS flex=%.1f, ext=%.1f, ch3=%.1f",
+                       activity,
                        (double)emg_rms[0],
                        (double)emg_rms[1],
                        (double)emg_rms[2]);
