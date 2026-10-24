@@ -242,6 +242,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   int battery_reading = 0;
   uint32_t samples_per_channel = 0;
   uint32_t frames_since_log = 0;
+  uint32_t frame_bytes = 0;
+  uint32_t partial_chunks = 0;
 
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   continuous_adc_init();
@@ -256,8 +258,12 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 1);
 #endif
+      uint32_t read_capacity = CONV_FRAME_SIZE - frame_bytes;
+
       size_ret = 0;
-      ret = adc_continuous_read(adc_handle, result, CONV_FRAME_SIZE,
+      ret = adc_continuous_read(adc_handle,
+                                result + frame_bytes,
+                                read_capacity,
                                 &size_ret, 0);
 
       if (ret == ESP_ERR_TIMEOUT) {
@@ -268,8 +274,26 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         break;
       }
 
-      if (ret == ESP_OK && size_ret == CONV_FRAME_SIZE) {
+      if (ret == ESP_OK &&
+          size_ret > 0 &&
+          size_ret <= read_capacity &&
+          size_ret % SOC_ADC_DIGI_RESULT_BYTES == 0) {
+        frame_bytes += size_ret;
+
+        if (frame_bytes < CONV_FRAME_SIZE) {
+          partial_chunks++;
+
+#ifdef DEBUG
+          gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+          // Keep this data and append the next chunk.
+          continue;
+        }
+
+        // The complete frame is ready for the existing decoder.
+        frame_bytes = 0;
         battery_reading = 0;
+
         for (int j = 0; j < PACKET_LEN; j++) {
           chords_packet[j][0] = counter;
           counter++;
@@ -296,10 +320,11 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         // 50 frames × 25 samples = about five seconds at 250 Hz.
         if (frames_since_log >= 50) {
           ESP_LOGI("MYOGRIP_ADC",
-                   "samples/ch=%lu, streaming=%s, pool_ovf=%lu",
+                   "samples/ch=%lu, streaming=%s, pool_ovf=%lu, partial=%lu",
                    (unsigned long)samples_per_channel,
                    streaming ? "on" : "off",
-                   (unsigned long)get_adc_pool_overflows());
+                   (unsigned long)get_adc_pool_overflows(),
+                   (unsigned long)partial_chunks);
           frames_since_log = 0;
         }
 
@@ -326,8 +351,9 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 #endif
 
       } else {
+        frame_bytes = 0;
         ESP_LOGE("adc_conv_task",
-                 "ADC read failed or incomplete: err=%s, bytes=%lu",
+                 "ADC read failed or invalid payload: err=%s, bytes=%lu",
                  esp_err_to_name(ret), (unsigned long)size_ret);
 #ifdef DEBUG
         gpio_set_level(DEBUG_PIN_1, 0);
