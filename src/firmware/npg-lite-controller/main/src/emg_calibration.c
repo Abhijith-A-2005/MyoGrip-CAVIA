@@ -64,12 +64,95 @@ void emg_calibration_reset(void)
   memset(summaries, 0, sizeof(summaries));
 }
 
+static bool validate_calibration(void)
+{
+  for (int capture = 0; capture < 4; capture++) {
+    if (!summaries[capture].valid) {
+      ESP_LOGW(TAG, "Missing capture: %s", names[capture]);
+      return false;
+    }
+
+    // CH3 is observed but does not determine acceptance.
+    for (unsigned ch = 0; ch < 2; ch++) {
+      float median = summaries[capture].median[ch];
+      float p95 = summaries[capture].p95[ch];
+
+      if (!isfinite(median) || !isfinite(p95) ||
+          median < 0.0f || p95 < median) {
+        ESP_LOGE(TAG, "Invalid statistics: %s CH%u",
+                 names[capture], ch + 1);
+        return false;
+      }
+    }
+  }
+
+  float rest[2] = {
+      summaries[0].p95[0],
+      summaries[0].p95[1]
+  };
+
+  float reference[2] = {
+      summaries[1].median[0],  // Flexor during flexion.
+      summaries[2].median[1]   // Extensor during extension.
+  };
+
+  float span[2];
+
+  for (unsigned ch = 0; ch < 2; ch++) {
+    span[ch] = reference[ch] - rest[ch];
+
+    if (span[ch] < EMG_CAL_MIN_REFERENCE_SPAN ||
+        reference[ch] < rest[ch] * EMG_CAL_MIN_REFERENCE_RATIO) {
+      ESP_LOGW(TAG,
+               "Weak CH%u reference: rest_p95=%.1f reference=%.1f",
+               ch + 1, (double)rest[ch], (double)reference[ch]);
+      return false;
+    }
+  }
+
+  // Each intended contraction has normalized activation 1.0.
+  // Compare the opposite channel using its own calibrated scale.
+  float ext_during_flex = fmaxf(
+      0.0f, (summaries[1].median[1] - rest[1]) / span[1]);
+
+  float flex_during_ext = fmaxf(
+      0.0f, (summaries[2].median[0] - rest[0]) / span[0]);
+
+  if (ext_during_flex * EMG_CAL_DOMINANCE_RATIO >= 1.0f ||
+      flex_during_ext * EMG_CAL_DOMINANCE_RATIO >= 1.0f) {
+    ESP_LOGW(TAG,
+             "Excessive normalized channel overlap: "
+             "ext_during_flex=%.2f flex_during_ext=%.2f",
+             (double)ext_during_flex, (double)flex_during_ext);
+    return false;
+  }
+
+  float normal_ext_p95 = summaries[2].p95[1];
+  float high_ext_median = summaries[3].median[1];
+
+  if (high_ext_median < normal_ext_p95 * EMG_CAL_MIN_HE_RATIO) {
+    ESP_LOGW(TAG,
+             "Weak HE separation: normal_ext_p95=%.1f HE_median=%.1f",
+             (double)normal_ext_p95, (double)high_ext_median);
+    return false;
+  }
+
+  ESP_LOGI(TAG, "Reference checks PASSED");
+
+  ESP_LOGI(TAG,
+           "Normalized overlap: ext_during_flex=%.2f "
+           "flex_during_ext=%.2f",
+           (double)ext_during_flex, (double)flex_during_ext);
+
+  return true;
+}
+
 void emg_calibration_command(char command)
 {
   if (command == '?') {
     ESP_LOGI(TAG,
              "r=rest/new session, f=flexion, e=extension, "
-             "h=high extension, x=cancel");
+             "h=high extension, v=validate, x=cancel");
     return;
   }
 
@@ -81,6 +164,15 @@ void emg_calibration_command(char command)
     }
 
     active_capture = -1;
+    return;
+  }
+
+  if (command == 'v') {
+    if (active_capture >= 0) {
+      ESP_LOGW(TAG, "Finish or cancel the current capture first");
+    } else {
+      (void)validate_calibration();
+    }
     return;
   }
 

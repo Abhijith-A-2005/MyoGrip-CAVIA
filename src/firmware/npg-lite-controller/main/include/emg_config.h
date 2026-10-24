@@ -18,4 +18,10 @@
 #define EMG_CAL_POINTS \
     (EMG_CAL_CAPTURE_SAMPLES / EMG_CAL_DECIMATION)
 
+// Initial calibration acceptance rules; validate through repeated trials.
+#define EMG_CAL_MIN_REFERENCE_RATIO 1.30f
+#define EMG_CAL_MIN_REFERENCE_SPAN 5.0f
+#define EMG_CAL_MIN_HE_RATIO 1.30f
+#define EMG_CAL_DOMINANCE_RATIO 2.0f
+
 #endif

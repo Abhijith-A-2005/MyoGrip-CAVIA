@@ -76,7 +76,7 @@ static void emg_console_task(void *arg)
 
   setvbuf(stdin, NULL, _IONBF, 0);
 
-  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h x ?");
+  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h v x ?");
 
   while (1) {
     int input = getchar();
@@ -95,8 +95,9 @@ static void emg_console_task(void *arg)
 
     if (command != 'r' && command != 'f' &&
         command != 'e' && command != 'h' &&
-        command != 'x' && command != '?') {
-      ESP_LOGW("MYOGRIP_CONSOLE", "Unknown command; use r f e h x ?");
+        command != 'v' && command != 'x' && command != '?') {
+      ESP_LOGW("MYOGRIP_CONSOLE",
+               "Unknown command; use r f e h v x ?");
       continue;
     }
 
