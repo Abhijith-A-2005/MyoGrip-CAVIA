@@ -33,6 +33,7 @@
 #include <stdint.h>
 #include "emg_signal.h"
 #include "emg_calibration.h"
+#include "emg_episode.h"
 #include "freertos/queue.h"
 #include <ctype.h>
 
@@ -397,9 +398,11 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 
   float emg_rms[EMG_CHANNEL_COUNT] = {0};
   uint32_t emg_log_samples = 0;
+  const char *previous_activity = NULL;
 
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   emg_signal_reset();
+  emg_episode_reset();
   continuous_adc_init();
   ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
 
@@ -421,6 +424,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         emg_signal_reset();
         emg_calibration_reset();
         emg_activity_reset();
+        emg_episode_reset();
+        previous_activity = NULL;
         emg_log_samples = 0;
 
         // Mark a discontinuity in the existing BLE sample counter.
@@ -522,6 +527,42 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
           bool ready = emg_signal_process(raw_emg, emg_rms);
           emg_calibration_process(emg_rms, ready);
           const char *activity = emg_activity_update(emg_rms, ready);
+
+          emg_episode_t episode_result;
+          emg_episode_event_t episode_event =
+              emg_episode_update(activity, &episode_result);
+
+          if (episode_event == EMG_EPISODE_BEGIN) {
+            ESP_LOGI("MYOGRIP_EMG",
+                     "EPISODE START %c",
+                     episode_result.direction);
+          } else if (episode_event == EMG_EPISODE_END) {
+            ESP_LOGI("MYOGRIP_EMG",
+                     "EPISODE END %c | span=%lu primary=%lu "
+                     "opposite=%lu ambiguous=%lu (samples)",
+                     episode_result.direction,
+                     (unsigned long)episode_result.span_samples,
+                     (unsigned long)episode_result.primary_samples,
+                     (unsigned long)episode_result.opposite_samples,
+                     (unsigned long)episode_result.ambiguous_samples);
+          }
+
+          if (previous_activity == NULL ||
+              strcmp(previous_activity, activity) != 0) {
+            uint32_t sample_number =
+                samples_per_channel + (uint32_t)j + 1;
+
+            ESP_LOGI("MYOGRIP_EMG",
+                     "ACTIVITY %s -> %s | sample=%lu flex=%.1f ext=%.1f",
+                     previous_activity != NULL
+                         ? previous_activity : "START",
+                     activity,
+                     (unsigned long)sample_number,
+                     (double)emg_rms[0],
+                     (double)emg_rms[1]);
+
+            previous_activity = activity;
+          }
 
           emg_log_samples++;
           if (emg_log_samples >= EMG_LOG_INTERVAL_SAMPLES) {
