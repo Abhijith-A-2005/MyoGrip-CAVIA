@@ -92,21 +92,37 @@ static void selftest_task(void *arg)
 
             mg_step(&fsm, t->event);
 
+            mg_grip_t grip = mg_selected_grip(&fsm);
+            bool grip_ok;
+
+            if (fsm.state == MG_HOME) {
+                grip_ok = grip == MG_GRIP_NONE &&
+                          fsm.active_grip == MG_GRIP_NONE;
+            } else if (fsm.state == MG_ADAPTIVE || fsm.state == MG_FULL) {
+                grip_ok = grip != MG_GRIP_NONE &&
+                          fsm.active_grip == MG_GRIP_NONE;
+            } else {
+                grip_ok = grip != MG_GRIP_NONE &&
+                          grip == fsm.active_grip;
+            }
+
             bool ok =
                 fsm.state == t->expected_state &&
                 fsm.selected == t->expected_selected &&
-                fsm.wait_release == t->expected_gate;
+                fsm.wait_release == t->expected_gate &&
+                grip_ok;
 
             ESP_LOGI(
                 TAG,
-                "%02u %s: %s + %s -> %s, index=%u, gate=%u",
+                "%02u %s: %s + %s -> %s, index=%u, gate=%u, grip=%s",
                 i + 1,
                 ok ? "PASS" : "FAIL",
                 mg_state_name(before),
                 mg_event_name(t->event),
                 mg_state_name(fsm.state),
                 (unsigned)fsm.selected,
-                (unsigned)fsm.wait_release
+                (unsigned)fsm.wait_release,
+                mg_grip_name(grip)
             );
 
             if (ok) {

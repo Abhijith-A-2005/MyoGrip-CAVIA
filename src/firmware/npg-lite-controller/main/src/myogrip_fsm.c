@@ -1,10 +1,54 @@
 #include "myogrip_fsm.h"
+#include <stddef.h>
+
+/* Development menus matching the existing shared test sequence. */
+static const mg_grip_t adaptive_grips[MG_ADAPTIVE_COUNT] = {
+    MG_GRIP_POWER, MG_GRIP_LATERAL, MG_GRIP_PINCH
+};
+
+static const mg_grip_t full_grips[MG_FULL_COUNT] = {
+    MG_GRIP_POWER, MG_GRIP_PINCH, MG_GRIP_TRIPOD, MG_GRIP_LATERAL
+};
+
+mg_grip_t mg_selected_grip(const mg_fsm_t *f)
+{
+    if (f == NULL) {
+        return MG_GRIP_NONE;
+    }
+
+    if (f->state == MG_ADAPTIVE && f->selected < MG_ADAPTIVE_COUNT) {
+        return adaptive_grips[f->selected];
+    }
+
+    if (f->state == MG_FULL && f->selected < MG_FULL_COUNT) {
+        return full_grips[f->selected];
+    }
+
+    if (f->state == MG_HOLDING || f->state == MG_CLOSING ||
+        f->state == MG_OPENING) {
+        return f->active_grip;
+    }
+
+    return MG_GRIP_NONE;
+}
+
+const char *mg_grip_name(mg_grip_t grip)
+{
+    switch (grip) {
+    case MG_GRIP_POWER:   return "POWER";
+    case MG_GRIP_PINCH:   return "PINCH";
+    case MG_GRIP_TRIPOD:  return "TRIPOD";
+    case MG_GRIP_LATERAL: return "LATERAL";
+    default:             return "NONE";
+    }
+}
 
 void mg_init(mg_fsm_t *f)
 {
     f->state = MG_HOME;
     f->selected = 0;
     f->wait_release = false;
+    f->active_grip = MG_GRIP_NONE;
 }
 
 void mg_step(mg_fsm_t *f, mg_event_t event)
@@ -36,6 +80,7 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
 
         case MG_LF:
             /* D16: continued confirming flexion may close immediately. */
+            f->active_grip = mg_selected_grip(f);
             f->state = MG_HOLDING;
             f->wait_release = false;
             break;
@@ -63,6 +108,7 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
      * These state changes do not generate any motor output.
      */
     if (event == MG_HE) {
+        f->active_grip = MG_GRIP_NONE;
         f->state = MG_FULL;
         f->selected = 0;
         f->wait_release = false;

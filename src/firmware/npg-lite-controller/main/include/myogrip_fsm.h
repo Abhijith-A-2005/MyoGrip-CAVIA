@@ -9,6 +9,14 @@
 #define MG_FULL_COUNT 4
 
 typedef enum {
+    MG_GRIP_NONE = -1,
+    MG_GRIP_POWER,
+    MG_GRIP_PINCH,
+    MG_GRIP_TRIPOD,
+    MG_GRIP_LATERAL
+} mg_grip_t;
+
+typedef enum {
     MG_HOME,
     MG_ADAPTIVE,
     MG_FULL,
@@ -40,12 +48,18 @@ typedef struct {
     /* Zero-based index into the current/test-selected menu. */
     uint8_t selected;
 
+    /* Confirmed grip, independent of subsequent activity inputs. */
+    mg_grip_t active_grip;
+
     /* After invalid actuation input, require rest before resuming. */
     bool wait_release;
 } mg_fsm_t;
 
 void mg_init(mg_fsm_t *fsm);
 void mg_step(mg_fsm_t *fsm, mg_event_t event);
+
+mg_grip_t mg_selected_grip(const mg_fsm_t *fsm);
+const char *mg_grip_name(mg_grip_t grip);
 
 const char *mg_state_name(mg_state_t state);
 const char *mg_event_name(mg_event_t event);
