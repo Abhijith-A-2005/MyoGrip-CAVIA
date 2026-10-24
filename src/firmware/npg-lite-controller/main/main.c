@@ -31,6 +31,8 @@
 #include "soc/soc_caps.h"
 #include <stdint.h>
 #include "emg_signal.h"
+#include "freertos/queue.h"
+#include <ctype.h>
 
 #define SAMPLING_RATE EMG_SAMPLE_RATE_HZ
 #define PACKET_LEN 25
@@ -63,6 +65,45 @@ uint8_t channels[NUM_CHANNELS] = {0, 1, 2, 6};
 #define MAP(X) ((X) * 4095 / 3329)
 
 const char *TAG = "NPG-IDF";
+
+static QueueHandle_t emg_command_queue;
+
+static void emg_console_task(void *arg)
+{
+  (void)arg;
+
+  setvbuf(stdin, NULL, _IONBF, 0);
+
+  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h x ?");
+
+  while (1) {
+    int input = getchar();
+
+    if (input == EOF) {
+      clearerr(stdin);
+      vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
+
+    if (input == '\r' || input == '\n') {
+      continue;
+    }
+
+    char command = (char)tolower((unsigned char)input);
+
+    if (command != 'r' && command != 'f' &&
+        command != 'e' && command != 'h' &&
+        command != 'x' && command != '?') {
+      ESP_LOGW("MYOGRIP_CONSOLE", "Unknown command; use r f e h x ?");
+      continue;
+    }
+
+    // The acquisition task will own calibration state.
+    if (xQueueSend(emg_command_queue, &command, 0) != pdPASS) {
+      ESP_LOGW("MYOGRIP_CONSOLE", "Command queue full; command dropped");
+    }
+  }
+}
 
 /* Library function declarations */
 void ble_store_config_init(void);
@@ -283,8 +324,15 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
 
   while (1) {
+
     // Sleep until the ADC reports available data.
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    char command;
+    while (xQueueReceive(emg_command_queue, &command, 0) == pdPASS) {
+      ESP_LOGI("MYOGRIP_CONSOLE", "Input test: received '%c'", command);
+    }
+
 
       if (recovery_pending ||
           get_adc_pool_overflows() != handled_overflows) {
@@ -543,6 +591,16 @@ void app_main(void) {
   esp_log_level_set("MYOGRIP_ADC", ESP_LOG_INFO);
 
   esp_log_level_set("MYOGRIP_EMG", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_CONSOLE", ESP_LOG_INFO);
+
+  emg_command_queue = xQueueCreate(8, sizeof(char));
+  ESP_ERROR_CHECK(emg_command_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
+
+  BaseType_t console_rc = xTaskCreate(
+      emg_console_task, "emg_console", 3 * 1024, NULL, 2, NULL);
+
+  ESP_ERROR_CHECK(console_rc == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 
   xTaskCreate(adc_conv_task, "adc_conv_task", 4 * 1024, NULL, 5, NULL);
 
