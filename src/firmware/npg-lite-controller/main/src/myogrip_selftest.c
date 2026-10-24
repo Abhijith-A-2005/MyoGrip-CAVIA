@@ -28,12 +28,12 @@ static const test_case_t tests[] = {
     {MG_REST,        MG_ADAPTIVE, 1, false},
     {MG_INVALID,     MG_ADAPTIVE, 1, false},
 
-    /* Confirm, then verify that closing requires release. */
-    {MG_LF,          MG_HOLDING,  1, true},
-    {MG_FLEX_ACTIVE, MG_HOLDING,  1, true},
+    /* Confirm, then continue into closing without release. */
+    {MG_LF,          MG_HOLDING,  1, false},
+    {MG_FLEX_ACTIVE, MG_CLOSING,  1, false},
     {MG_REST,        MG_HOLDING,  1, false},
 
-    /* Simulated proportional-control states. */
+    /* Simulated actuation states. */
     {MG_FLEX_ACTIVE, MG_CLOSING,  1, false},
     {MG_REST,        MG_HOLDING,  1, false},
     {MG_EXT_ACTIVE,  MG_OPENING,  1, false},
@@ -53,7 +53,7 @@ static const test_case_t tests[] = {
     {MG_REST,        MG_FULL,     0, false},
 
     /* Confirmation from Full Menu. */
-    {MG_LF,          MG_HOLDING,  0, true},
+    {MG_LF,          MG_HOLDING,  0, false},
     {MG_REST,        MG_HOLDING,  0, false},
     {MG_EXT_ACTIVE,  MG_OPENING,  0, false},
     {MG_HE,          MG_FULL,     0, false},

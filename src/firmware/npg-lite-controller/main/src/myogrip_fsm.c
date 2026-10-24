@@ -35,12 +35,9 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
             break;
 
         case MG_LF:
-            /*
-             * Confirm selection, but require rest before accepting
-             * continuous flexor/extensor activity.
-             */
+            /* D16: continued confirming flexion may close immediately. */
             f->state = MG_HOLDING;
-            f->wait_release = true;
+            f->wait_release = false;
             break;
 
         case MG_LE:

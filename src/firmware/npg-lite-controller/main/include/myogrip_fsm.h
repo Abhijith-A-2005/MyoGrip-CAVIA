@@ -40,7 +40,7 @@ typedef struct {
     /* Zero-based index into the current/test-selected menu. */
     uint8_t selected;
 
-    /* Prevent confirmation activity from immediately closing. */
+    /* After invalid actuation input, require rest before resuming. */
     bool wait_release;
 } mg_fsm_t;
 
