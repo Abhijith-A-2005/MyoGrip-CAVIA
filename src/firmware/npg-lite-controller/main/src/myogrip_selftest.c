@@ -47,7 +47,7 @@ static const test_case_t tests[] = {
 
     /* Full menu wraparound and ignored inputs. */
     {MG_HE,          MG_FULL,     0, false},
-    {MG_SE,          MG_FULL,     4, false},
+    {MG_SE,          MG_FULL,     3, false},
     {MG_SF,          MG_FULL,     0, false},
     {MG_LE,          MG_FULL,     0, false},
     {MG_REST,        MG_FULL,     0, false},

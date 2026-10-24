@@ -6,7 +6,7 @@
 
 /* Fixed test menus only. Real CAVIA menus will come later. */
 #define MG_ADAPTIVE_COUNT 3
-#define MG_FULL_COUNT 5
+#define MG_FULL_COUNT 4
 
 typedef enum {
     MG_HOME,
