@@ -174,10 +174,16 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
      * These state changes do not generate any motor output.
      */
     if (event == MG_HE) {
-        f->active_grip = MG_GRIP_NONE;
-        f->state = MG_FULL;
-        f->selected = 0;
-        f->wait_release = false;
+        if (!f->returning) {
+            f->state = MG_OPENING;
+            f->returning = true;
+            f->wait_release = false;
+        }
+        return;
+    }
+
+    // Finish the HE return before accepting muscle activity again.
+    if (f->returning) {
         return;
     }
 
@@ -210,16 +216,29 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
 
 void mg_tick(mg_fsm_t *f, float dt_seconds)
 {
-    if (f == NULL || !isfinite(dt_seconds) || dt_seconds <= 0.0f) {
+    if (f == NULL || !isfinite(dt_seconds)) {
         return;
+    }
+    if (dt_seconds < 0.0f) {
+        dt_seconds = 0.0f;
     }
 
     if (f->state == MG_CLOSING) {
         float next = f->grip_progress + MG_CLOSE_SPEED_PER_S * dt_seconds;
         f->grip_progress = next > 1.0f ? 1.0f : next;
     } else if (f->state == MG_OPENING) {
-        float next = f->grip_progress - MG_OPEN_SPEED_PER_S * dt_seconds;
+        float speed = f->returning
+            ? MG_HE_RETURN_SPEED_PER_S : MG_OPEN_SPEED_PER_S;
+        float next = f->grip_progress - speed * dt_seconds;
         f->grip_progress = next < 0.0f ? 0.0f : next;
+
+        if (f->returning && f->grip_progress <= 0.0f) {
+            f->state = MG_FULL;
+            f->selected = 0;
+            f->active_grip = MG_GRIP_NONE;
+            f->wait_release = false;
+            f->returning = false;
+        }
     }
 }
 

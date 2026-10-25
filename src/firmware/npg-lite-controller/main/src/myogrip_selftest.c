@@ -185,6 +185,69 @@ static bool progress_selftest(void)
     return ok;
 }
 
+static bool he_return_selftest(void)
+{
+    mg_fsm_t f;
+    mg_init(&f);
+    mg_step(&f, MG_MENU_READY);
+    mg_step(&f, MG_SF);  // Select LATERAL.
+    mg_step(&f, MG_LF);
+    mg_step(&f, MG_FLEX_ACTIVE);
+    mg_tick(&f, 2.0f);
+    bool ok = progress_near(f.grip_progress, 0.5f);
+
+    mg_step(&f, MG_INVALID);
+    ok &= f.wait_release;
+
+    mg_step(&f, MG_HE);
+    ok &= f.state == MG_OPENING && f.returning && !f.wait_release;
+    ok &= f.active_grip == MG_GRIP_LATERAL;
+    ok &= progress_near(f.grip_progress, 0.5f);
+
+    // Activity and repeated gestures cannot interrupt the return.
+    const mg_event_t ignored[] = {
+        MG_REST, MG_INVALID, MG_FLEX_ACTIVE, MG_EXT_ACTIVE,
+        MG_SF, MG_SE, MG_LF, MG_LE, MG_MENU_READY, MG_HE
+    };
+    for (unsigned i = 0; i < sizeof(ignored) / sizeof(ignored[0]); i++) {
+        mg_step(&f, ignored[i]);
+        ok &= f.state == MG_OPENING && f.returning && !f.wait_release;
+        ok &= f.active_grip == MG_GRIP_LATERAL && f.selected == 1;
+        ok &= progress_near(f.grip_progress, 0.5f);
+    }
+
+    mg_tick(&f, -1.0f);
+    mg_tick(&f, 0.0f);
+    ok &= f.returning && progress_near(f.grip_progress, 0.5f);
+
+    mg_tick(&f, 0.5f);
+    ok &= f.state == MG_OPENING && f.returning;
+    ok &= progress_near(f.grip_progress, 0.25f);
+
+    mg_tick(&f, 0.5f);
+    ok &= f.state == MG_FULL && !f.returning && !f.wait_release;
+    ok &= progress_near(f.grip_progress, 0.0f);
+    ok &= f.selected == 0 && f.active_grip == MG_GRIP_NONE;
+    ok &= f.menu_loaded && f.menu.menu_id == 1;
+    ok &= mg_selected_grip(&f) == MG_GRIP_POWER;
+
+    // A subsequent HE from Full Menu returns Home.
+    mg_step(&f, MG_HE);
+    ok &= f.state == MG_HOME && !f.menu_loaded && !f.returning;
+
+    // Already open: the next tick completes the return without movement.
+    mg_step(&f, MG_MENU_READY);
+    mg_step(&f, MG_LF);
+    mg_step(&f, MG_HE);
+    ok &= f.state == MG_OPENING && f.returning;
+
+    mg_tick(&f, 0.0f);
+    ok &= f.state == MG_FULL && !f.returning;
+    ok &= f.active_grip == MG_GRIP_NONE;
+
+    return ok;
+}
+
 static void selftest_task(void *arg)
 {
     (void)arg;
@@ -209,11 +272,18 @@ static void selftest_task(void *arg)
         bool progress_ok = progress_selftest();
         ESP_LOGI(TAG, "GRIP PROGRESS: %s", progress_ok ? "PASS" : "FAIL");
 
+        bool he_ok = he_return_selftest();
+        ESP_LOGI(TAG, "HE RETURN: %s", he_ok ? "PASS" : "FAIL");
+
         for (unsigned i = 0; i < total; i++) {
             const test_case_t *t = &tests[i];
             mg_state_t before = fsm.state;
 
             mg_step(&fsm, t->event);
+
+            // These cases have zero progress, so HE returns finish here.
+            // he_return_selftest() checks the intermediate OPENING state.
+            mg_tick(&fsm, 0.0f);            
 
             mg_grip_t grip = mg_selected_grip(&fsm);
             bool grip_ok;
@@ -264,20 +334,22 @@ static void selftest_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
 
-        if (passed == total && menu_ok && progress_ok) {
+        if (passed == total && menu_ok && progress_ok && he_ok) {
             ESP_LOGI(
                 TAG,
-                "RESULT: %u/%u PASS; menu snapshots PASS; grip progress PASS",
+                "RESULT: %u/%u PASS; menu snapshots PASS; "
+                "grip progress PASS; HE return PASS",
                 passed, total
             );
         } else {
             ESP_LOGE(
                 TAG,
                 "RESULT: %u/%u state checks passed; menu snapshots %s; "
-                "grip progress %s",
+                "grip progress %s; HE return %s",
                 passed, total,
                 menu_ok ? "PASS" : "FAIL",
-                progress_ok ? "PASS" : "FAIL"
+                progress_ok ? "PASS" : "FAIL",
+                he_ok ? "PASS" : "FAIL"
             );
         }
 

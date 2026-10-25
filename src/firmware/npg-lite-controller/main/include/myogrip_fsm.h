@@ -11,6 +11,7 @@
 /* Simulated grip progress per second. */
 #define MG_CLOSE_SPEED_PER_S 0.25f
 #define MG_OPEN_SPEED_PER_S  0.35f
+#define MG_HE_RETURN_SPEED_PER_S 0.5f
 
 typedef enum {
     MG_GRIP_NONE = -1,
@@ -61,6 +62,8 @@ typedef struct {
     bool menu_loaded;
 
     float grip_progress;  /* 0.0 = open, 1.0 = closed */
+
+    bool returning;  /* HE return is opening toward the Full Menu. */
 
     /* Zero-based index into the current/test-selected menu. */
     uint8_t selected;
