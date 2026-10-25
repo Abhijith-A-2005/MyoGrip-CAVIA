@@ -1,6 +1,7 @@
 #include "myogrip_fsm.h"
 #include <stddef.h>
 #include <string.h>
+#include <math.h>
 
 /* MG_MENU_READY remains a development shortcut for the old selftest. */
 static const mg_menu_t demo_menu = {
@@ -204,6 +205,21 @@ void mg_step(mg_fsm_t *f, mg_event_t event)
         f->state = MG_CLOSING;
     } else if (event == MG_EXT_ACTIVE) {
         f->state = MG_OPENING;
+    }
+}
+
+void mg_tick(mg_fsm_t *f, float dt_seconds)
+{
+    if (f == NULL || !isfinite(dt_seconds) || dt_seconds <= 0.0f) {
+        return;
+    }
+
+    if (f->state == MG_CLOSING) {
+        float next = f->grip_progress + MG_CLOSE_SPEED_PER_S * dt_seconds;
+        f->grip_progress = next > 1.0f ? 1.0f : next;
+    } else if (f->state == MG_OPENING) {
+        float next = f->grip_progress - MG_OPEN_SPEED_PER_S * dt_seconds;
+        f->grip_progress = next < 0.0f ? 0.0f : next;
     }
 }
 

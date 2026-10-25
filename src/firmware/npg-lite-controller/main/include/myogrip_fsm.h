@@ -8,6 +8,9 @@
 #define MG_ADAPTIVE_COUNT 3
 #define MG_FULL_COUNT 4
 #define MG_MENU_CAPACITY 4
+/* Simulated grip progress per second. */
+#define MG_CLOSE_SPEED_PER_S 0.25f
+#define MG_OPEN_SPEED_PER_S  0.35f
 
 typedef enum {
     MG_GRIP_NONE = -1,
@@ -57,6 +60,8 @@ typedef struct {
     mg_menu_t menu;
     bool menu_loaded;
 
+    float grip_progress;  /* 0.0 = open, 1.0 = closed */
+
     /* Zero-based index into the current/test-selected menu. */
     uint8_t selected;
 
@@ -69,6 +74,7 @@ typedef struct {
 
 void mg_init(mg_fsm_t *fsm);
 void mg_step(mg_fsm_t *fsm, mg_event_t event);
+void mg_tick(mg_fsm_t *fsm, float dt_seconds);
 bool mg_load_menu(mg_fsm_t *fsm, const mg_menu_t *menu);
 
 mg_grip_t mg_selected_grip(const mg_fsm_t *fsm);

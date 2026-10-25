@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <math.h>
 
 static const char *TAG = "MYOGRIP_TEST";
 
@@ -115,6 +116,75 @@ static bool menu_snapshot_selftest(void)
     return ok;
 }
 
+static bool progress_near(float actual, float expected)
+{
+    return fabsf(actual - expected) < 0.0001f;
+}
+
+static bool progress_selftest(void)
+{
+    mg_fsm_t f;
+    mg_init(&f);
+    mg_tick(&f, 2.0f);
+    bool ok = f.state == MG_HOME && progress_near(f.grip_progress, 0.0f);
+
+    mg_step(&f, MG_MENU_READY);
+    mg_tick(&f, 2.0f);
+    ok &= f.state == MG_ADAPTIVE && progress_near(f.grip_progress, 0.0f);
+
+    mg_step(&f, MG_LF);
+    mg_step(&f, MG_FLEX_ACTIVE);
+    mg_tick(&f, 2.0f);
+    ok &= f.state == MG_CLOSING && progress_near(f.grip_progress, 0.5f);
+
+    mg_step(&f, MG_REST);
+    mg_tick(&f, 2.0f);
+    ok &= f.state == MG_HOLDING && progress_near(f.grip_progress, 0.5f);
+
+    mg_step(&f, MG_EXT_ACTIVE);
+    mg_tick(&f, 1.0f);
+    ok &= f.state == MG_OPENING && progress_near(f.grip_progress, 0.15f);
+
+    mg_step(&f, MG_INVALID);
+    mg_step(&f, MG_FLEX_ACTIVE);
+    mg_tick(&f, 2.0f);
+    ok &= f.state == MG_HOLDING && f.wait_release;
+    ok &= progress_near(f.grip_progress, 0.15f);
+
+    mg_step(&f, MG_REST);
+    mg_step(&f, MG_FLEX_ACTIVE);
+    mg_tick(&f, -2.0f);
+    mg_tick(&f, 0.0f);
+    mg_tick(&f, NAN);
+    mg_tick(&f, INFINITY);
+    ok &= progress_near(f.grip_progress, 0.15f);
+
+    mg_tick(&f, 10.0f);
+    ok &= f.state == MG_CLOSING && progress_near(f.grip_progress, 1.0f);
+
+    mg_step(&f, MG_EXT_ACTIVE);
+    mg_tick(&f, 10.0f);
+    ok &= f.state == MG_OPENING && progress_near(f.grip_progress, 0.0f);
+    ok &= f.active_grip == MG_GRIP_POWER;
+
+    // Fully open remains in actuation and can close again.
+    mg_step(&f, MG_FLEX_ACTIVE);
+    mg_tick(&f, 1.0f);
+    ok &= f.state == MG_CLOSING && progress_near(f.grip_progress, 0.25f);
+
+    // Smaller ticks must produce the same progress for the same elapsed time.
+    mg_init(&f);
+    mg_step(&f, MG_MENU_READY);
+    mg_step(&f, MG_LF);
+    mg_step(&f, MG_FLEX_ACTIVE);
+    for (unsigned i = 0; i < 250; i++) {
+        mg_tick(&f, 0.004f);
+    }
+    ok &= progress_near(f.grip_progress, 0.25f);
+
+    return ok;
+}
+
 static void selftest_task(void *arg)
 {
     (void)arg;
@@ -135,6 +205,9 @@ static void selftest_task(void *arg)
         ESP_LOGI(TAG, "SIMULATION ONLY: cycle %u", cycle);
         bool menu_ok = menu_snapshot_selftest();
         ESP_LOGI(TAG, "MENU SNAPSHOTS: %s", menu_ok ? "PASS" : "FAIL");
+
+        bool progress_ok = progress_selftest();
+        ESP_LOGI(TAG, "GRIP PROGRESS: %s", progress_ok ? "PASS" : "FAIL");
 
         for (unsigned i = 0; i < total; i++) {
             const test_case_t *t = &tests[i];
@@ -191,13 +264,21 @@ static void selftest_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
 
-         if (passed == total && menu_ok) {
-            ESP_LOGI(TAG, "RESULT: %u/%u PASS; menu snapshots PASS",
-                     passed, total);
+        if (passed == total && menu_ok && progress_ok) {
+            ESP_LOGI(
+                TAG,
+                "RESULT: %u/%u PASS; menu snapshots PASS; grip progress PASS",
+                passed, total
+            );
         } else {
-            ESP_LOGE(TAG,
-                     "RESULT: %u/%u state checks passed; menu snapshots %s",
-                     passed, total, menu_ok ? "PASS" : "FAIL");
+            ESP_LOGE(
+                TAG,
+                "RESULT: %u/%u state checks passed; menu snapshots %s; "
+                "grip progress %s",
+                passed, total,
+                menu_ok ? "PASS" : "FAIL",
+                progress_ok ? "PASS" : "FAIL"
+            );
         }
 
         vTaskDelay(pdMS_TO_TICKS(5000));
