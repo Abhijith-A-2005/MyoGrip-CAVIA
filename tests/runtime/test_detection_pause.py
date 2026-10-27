@@ -321,6 +321,7 @@ def test_actual_objdet_loop_skips_inference_while_paused_and_rejects_old_work(
         namedWindow=noop,
         resizeWindow=noop,
         line=noop,
+        circle=noop,
         putText=noop,
         imshow=noop,
         waitKey=wait_key,
