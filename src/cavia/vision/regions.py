@@ -1,5 +1,7 @@
 # regions.py
 
+UNKNOWN_REGION = "unknown"   # published while only the object is locked (stage 1)
+
 FUNCTIONAL_REGIONS = {
     "cup":        ["body", "handle"],     
     "bottle":     ["body", "cap"],                
@@ -9,7 +11,6 @@ FUNCTIONAL_REGIONS = {
     "remote":    ["side_edge", "lower_support"], 
     "book":      ["side_edge", "cover_face"],       
 }
-UNKNOWN_REGION = "unknown"
 
 def get_candidate_regions(class_name):
    

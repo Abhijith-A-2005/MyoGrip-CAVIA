@@ -1,17 +1,11 @@
 """Object and region candidate selection shared by both vision entry points."""
 
-if __package__:
-    from .regions import get_targeted_region, region_rect
-else:
-    from regions import get_targeted_region, region_rect
 import math
 
 if __package__:
     from .regions import get_targeted_region, region_rect, UNKNOWN_REGION
 else:
     from regions import get_targeted_region, region_rect, UNKNOWN_REGION
-
-CIRCLE_AREA_FRAC = 0.5        # stage-1 circle covers ~half the frame area
 
 
 TARGET_CLASSES = {
@@ -26,11 +20,38 @@ TARGET_CLASSES = {
 
 REGION_DISPLAY_CONF_THRESHOLD = 0.5
 
+CIRCLE_AREA_FRAC = 0.5      # stage-1 circle covers about half the frame area
+STAGE2_DELAY_S = 2.0        # seconds the circle stays after the object locks, before the cross appears
+
+
+def clamp_box(box, frame_shape):
+    """Keep a detection rectangle inside the camera frame."""
+    height, width = frame_shape[:2]
+    x1, y1, x2, y2 = box
+
+    return (
+        max(0, min(x1, width - 1)),
+        max(0, min(y1, height - 1)),
+        max(0, min(x2, width - 1)),
+        max(0, min(y2, height - 1)),
+    )
+
+
+def reticle_overlaps_box(point, box):
+    """Check whether the centre reticle lies inside a detection."""
+    x1, y1, x2, y2 = box
+
+    return (
+        x1 <= point[0] <= x2
+        and y1 <= point[1] <= y2
+    )
+
 
 def circle_radius(frame_shape):
+    """Radius of the stage-1 circle, never larger than the frame."""
     h, w = frame_shape[:2]
     r = int(math.sqrt(CIRCLE_AREA_FRAC * w * h / math.pi))
-    return min(r, min(w, h) // 2 - 2)          # never larger than the frame
+    return min(r, min(w, h) // 2 - 2)
 
 
 def box_center_in_circle(box, center, radius):
@@ -39,7 +60,7 @@ def box_center_in_circle(box, center, radius):
 
 
 def select_object_candidate(boxes, names, frame_shape, center, radius):
-    """stage 1: valid object whose box center is inside the circle; nearest to the center wins."""
+    """Stage 1: valid object whose box centre is inside the circle. Nearest to the centre wins."""
     candidate = None
     best_dist = None
 
@@ -71,31 +92,9 @@ def select_object_candidate(boxes, names, frame_shape, center, radius):
 
     return candidate
 
-def clamp_box(box, frame_shape):
-    """Keep a detection rectangle inside the camera frame."""
-    height, width = frame_shape[:2]
-    x1, y1, x2, y2 = box
 
-    return (
-        max(0, min(x1, width - 1)),
-        max(0, min(y1, height - 1)),
-        max(0, min(x2, width - 1)),
-        max(0, min(y2, height - 1)),
-    )
-
-
-def reticle_overlaps_box(point, box):
-    """Check whether the centre reticle lies inside a detection."""
-    x1, y1, x2, y2 = box
-
-    return (
-        x1 <= point[0] <= x2
-        and y1 <= point[1] <= y2
-    )
-
-
-def select_candidate(boxes, names, frame_shape, point,only_object=None):
-    """Choose the smallest valid object under the reticle."""
+def select_candidate(boxes, names, frame_shape, point, only_object=None):
+    """Choose the smallest valid object under the reticle (only_object limits it to one class)."""
     candidate = None
     best_area = None
 

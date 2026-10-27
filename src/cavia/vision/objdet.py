@@ -4,17 +4,20 @@ import json
 import time
 import numpy as np
 from camera_source import CameraSettings, CameraSource
-from vision_state import RegionTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
-from regions import normalize_rect
+from vision_state import TwoStageTracker, NO_OBJECT, SEARCHING, LOCKED, LOST
+from regions import normalize_rect, UNKNOWN_REGION
 from detection import (
     TARGET_CLASSES,
     REGION_DISPLAY_CONF_THRESHOLD,
     clamp_box,
     reticle_overlaps_box,
     select_candidate,
+    select_object_candidate,
+    circle_radius,
+    box_center_in_circle,
+    STAGE2_DELAY_S,
 )
 from cavia.runtime.vision_link import DetectionControl, frame_wanted, publish_frame, publish_result
-
 
 # Camera window title
 WINDOW = "CAVIA - Object Detection"
@@ -86,7 +89,17 @@ def get_contour_and_orientation(frame, box):
     return largest, normalize_angle(rect)
 
 
+def draw_circle_reticle(frame, color=(0, 0, 255)):
+    """Stage 1 reticle: large circle at the frame centre. Returns (centre, radius)."""
+    h, w = frame.shape[:2]
+    center = (w // 2, h // 2)
+    r = circle_radius(frame.shape)
+    cv2.circle(frame, center, r, color, 2)
+    return center, r
+
+
 def draw_cross_reticle(frame):
+    """Stage 2 reticle: the small red cross used for region targeting."""
     h, w = frame.shape[:2]
     cx, cy = w // 2, h // 2
     size = 20
@@ -95,14 +108,8 @@ def draw_cross_reticle(frame):
     cv2.line(frame, (cx - size, cy), (cx + size, cy), color, 2)
     cv2.line(frame, (cx, cy - size), (cx, cy + size), color, 2)
     return cx, cy
-def draw_circle_reticle(frame):
-    h, w = frame.shape[:2]
-    center = (w // 2, h // 2)
-    r = circle_radius(frame.shape)
-    cv2.circle(frame, center, r, (0, 0, 255), 2)
-    return center, r
-tracker = TwoStageTracker()
 
+tracker = TwoStageTracker(stage2_delay=STAGE2_DELAY_S)
 last_sent = None
 
 def overlay(out, candidate, frame_shape):
@@ -263,11 +270,16 @@ try:
 
         # frame stays raw; all drawing goes on display_frame
         display_frame = frame.copy()
-        stage = tracker.stage                    # read once per frame
-        if stage == 1:
-            reticle_point, reticle_r = draw_circle_reticle(display_frame)    # circle only, no cross
+        now = time.monotonic()
+        stage = tracker.stage                      # read once per frame
+        cross_on = tracker.cross_visible(now)      # False while the circle is up (stage 1 and the settle delay)
+        if cross_on:
+            reticle_point = draw_cross_reticle(display_frame)
+            reticle_r = None
         else:
-            reticle_point = draw_cross_reticle(display_frame)                # cross only, no circle
+            # red while searching for the object, green while the locked object settles
+            reticle_point, reticle_r = draw_circle_reticle(
+                display_frame, (0, 0, 255) if stage == 1 else (0, 255, 0))
 
         if detection_control.snapshot() != (False, generation):
             continue
@@ -278,13 +290,16 @@ try:
         if detection_control.snapshot() != (False, generation):
             continue
 
-        if stage == 1:
-            candidate = select_object_candidate(
-                results.boxes, model.names, frame.shape, reticle_point, reticle_r)
-        else:
+        if cross_on:
+            # stage 2: only the locked object, region from the cross (same zone rules as before)
             candidate = select_candidate(
                 results.boxes, model.names, frame.shape, reticle_point,
                 only_object=tracker.locked_object)
+        elif stage == 1:
+            candidate = select_object_candidate(
+                results.boxes, model.names, frame.shape, reticle_point, reticle_r)
+        else:
+            candidate = None                       # settling: no region work until the cross appears
 
         for box in results.boxes:
             cls_name = model.names[int(box.cls[0])]
@@ -298,11 +313,11 @@ try:
             if x2 <= x1 or y2 <= y1:
                 continue
 
-            if stage == 1:
-                targeted = box_center_in_circle((x1, y1, x2, y2), reticle_point, reticle_r)
-            else:
+            if cross_on:
                 targeted = (cls_name == tracker.locked_object
                             and reticle_overlaps_box(reticle_point, (x1, y1, x2, y2)))
+            else:
+                targeted = box_center_in_circle((x1, y1, x2, y2), reticle_point, reticle_r)
             box_color = COLOR_TARGETED if targeted else COLOR_NOT_TARGETED
 
             cv2.rectangle(display_frame, (x1, y1), (x2, y2), box_color, 2)
@@ -334,16 +349,17 @@ try:
         if detection_control.snapshot() != (False, generation):
             continue
 
-        out = tracker.update(candidate)
+        out = tracker.update(candidate, now)
         emit(out, generation, {
             "source": snapshot["source"],
             "frame_seq": frame_seq,
             **overlay(out, candidate, frame.shape),
         })
 
-        shown = tracker.display_out              # what is being worked on right now
+        shown = tracker.display_out                # what is being worked on right now
         color = STATE_COLORS[shown["state"]]
-        label = "STAGE 1 - OBJECT" if stage == 1 else "STAGE 2 - REGION"
+        label = ("STAGE 1 - OBJECT" if stage == 1
+                 else "STAGE 2 - REGION" if cross_on else "STAGE 2 - SETTLING")
         cv2.putText(display_frame, f"{shown['state']}  |  {label}", (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
         obj = shown["object"] or tracker.locked_object
@@ -351,6 +367,9 @@ try:
             cv2.putText(display_frame,
                         f"{obj} / {shown['region'] or UNKNOWN_REGION}  conf {shown['region_confidence']:.2f}",
                         (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            if cross_on and out["region"] != UNKNOWN_REGION:
+                cv2.putText(display_frame, f"LOCKED REGION: {out['region']}", (10, 85),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
 
         cv2.putText(display_frame,
