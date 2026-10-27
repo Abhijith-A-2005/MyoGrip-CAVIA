@@ -3,7 +3,6 @@ import time
 from collections import deque, Counter
 
 NO_OBJECT, SEARCHING, LOCKED, LOST = "NO_OBJECT", "SEARCHING", "LOCKED", "LOST"
-# LOST is kept so existing imports do not break. It is no longer emitted.
 
 
 def make_out(state, obj, region, conf, det=0.0, ret=0.0, stability=0.0):
@@ -32,32 +31,39 @@ def score_window(history, weights):
 
 
 class RegionTracker:
-    """Stage 1: locks a stable (object, region) pair. Once LOCKED the output is frozen until reset()."""
+    """Track a stable pair, report loss and allow a fresh pair to replace it."""
 
     def __init__(self, window=8, min_frames=5, lock_stability=0.7,
-                 lock_conf=0.6, lost_grace=5, weights=(0.4, 0.2, 0.4)):
+                 lock_conf=0.6, unlock_stability=0.5, lost_grace=5,
+                 weights=(0.4, 0.2, 0.4)):
         self.window = window
         self.min_frames = min_frames
         self.lock_stability = lock_stability
         self.lock_conf = lock_conf
-        self.lost_grace = lost_grace          # missed frames tolerated while still SEARCHING
+        self.unlock_stability = unlock_stability
+        self.lost_grace = lost_grace
         self.w = weights
         self.reset()
 
     def reset(self):
         self.history = deque(maxlen=self.window)
         self.state = NO_OBJECT
+        self.locked_pair = None
         self.missed = 0
         self.out = make_out(self.state, None, None, 0.0)
 
     def update(self, cand):
         """cand = None or {"object", "region", "det_conf", "reticle_score", ...}"""
-        if self.state == LOCKED:
-            return self.out                   # hard lock: no flicker
-
         if cand is None:
             self.missed += 1
-            if self.missed > self.lost_grace:
+            if self.state in (LOCKED, LOST) and self.missed <= self.lost_grace:
+                self.state = LOST
+                self.out = make_out(
+                    LOST, self.out["object"], self.out["region"],
+                    self.out["region_confidence"], self.out["det_conf"],
+                    self.out["reticle_score"], self.out["stability"],
+                )
+            else:
                 self.reset()
             return self.out
 
@@ -67,9 +73,12 @@ class RegionTracker:
         pair, stability, conf, det, ret = score_window(self.history, self.w)
         enough = len(self.history) >= self.min_frames
         if enough and stability >= self.lock_stability and conf >= self.lock_conf:
+            self.state, self.locked_pair = LOCKED, pair
+        elif (self.state in (LOCKED, LOST) and pair == self.locked_pair
+              and stability >= self.unlock_stability):
             self.state = LOCKED
         else:
-            self.state = SEARCHING
+            self.state, self.locked_pair = SEARCHING, None
         self.out = make_out(self.state, pair[0], pair[1], conf, det, ret, stability)
         return self.out
 
