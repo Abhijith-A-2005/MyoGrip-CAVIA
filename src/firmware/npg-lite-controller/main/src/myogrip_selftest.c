@@ -3,6 +3,8 @@
 #if MYOGRIP_SELFTEST_ENABLED
 
 #include "myogrip_fsm.h"
+#include "myogrip_live.h"
+#include <string.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -248,6 +250,77 @@ static bool he_return_selftest(void)
     return ok;
 }
 
+static bool live_menu_selftest(void)
+{
+    myogrip_live_t live;
+    mg_menu_t menu = {
+        .menu_id = 42,
+        .adaptive = {MG_GRIP_POWER, MG_GRIP_PINCH},
+        .adaptive_count = 2,
+        .full = {MG_GRIP_POWER, MG_GRIP_PINCH,
+                 MG_GRIP_TRIPOD, MG_GRIP_LATERAL},
+        .full_count = 4
+    };
+    myogrip_live_init(&live);
+
+    /* Menus must be usable before EMG calibration for keyboard operation. */
+    bool ok = !live.calibrated && !live.armed;
+    ok &= !myogrip_live_menu_ready(NULL);
+    ok &= !myogrip_live_load_menu(NULL, &menu, false);
+    ok &= !myogrip_live_load_menu(&live, NULL, false);
+    ok &= myogrip_live_load_menu(&live, &menu, false);
+    ok &= live.fsm.state == MG_ADAPTIVE && live.fsm.menu.menu_id == 42;
+
+    /* Reordering preserves the grip by identity, not its previous index. */
+    mg_step(&live.fsm, MG_SF);
+    menu.menu_id = 43;
+    menu.adaptive[0] = MG_GRIP_PINCH;
+    menu.adaptive[1] = MG_GRIP_POWER;
+    ok &= myogrip_live_load_menu(&live, &menu, true);
+    ok &= live.fsm.selected == 0 &&
+          mg_selected_grip(&live.fsm) == MG_GRIP_PINCH;
+
+    /* A missing old selection falls back to the first item. */
+    menu.adaptive[0] = MG_GRIP_POWER;
+    menu.adaptive_count = 1;
+    ok &= myogrip_live_load_menu(&live, &menu, true);
+    ok &= mg_selected_grip(&live.fsm) == MG_GRIP_POWER;
+
+    /* Invalid proposals must leave the entire live FSM unchanged. */
+    mg_fsm_t before;
+    memcpy(&before, &live.fsm, sizeof(before));
+    menu.full[1] = MG_GRIP_POWER;
+    ok &= !myogrip_live_load_menu(&live, &menu, false);
+    ok &= memcmp(&before, &live.fsm, sizeof(before)) == 0;
+    menu.full[1] = MG_GRIP_PINCH;
+
+    /* Refreshing Full must not switch back to Adaptive. */
+    mg_step(&live.fsm, MG_LE);
+    mg_step(&live.fsm, MG_SF);
+    ok &= myogrip_live_load_menu(&live, &menu, true);
+    ok &= live.fsm.state == MG_FULL &&
+          mg_selected_grip(&live.fsm) == MG_GRIP_PINCH;
+    ok &= myogrip_live_load_menu(&live, &menu, false);
+    ok &= live.fsm.selected == 0;
+
+    /* Caller edits do not change the accepted snapshot. */
+    menu.menu_id = 99;
+    ok &= live.fsm.menu.menu_id == 43;
+
+    /* Confirmation, movement and HE return all block replacement. */
+    mg_step(&live.fsm, MG_LF);
+    ok &= !myogrip_live_load_menu(&live, &menu, false);
+    mg_step(&live.fsm, MG_FLEX_ACTIVE);
+    mg_tick(&live.fsm, 1.0f);
+    ok &= !myogrip_live_load_menu(&live, &menu, false);
+    mg_step(&live.fsm, MG_HE);
+    ok &= !myogrip_live_load_menu(&live, &menu, false);
+    mg_tick(&live.fsm, 1.0f);
+    ok &= myogrip_live_load_menu(&live, &menu, false);
+
+    return ok;
+}
+
 static void selftest_task(void *arg)
 {
     (void)arg;
@@ -359,6 +432,10 @@ static void selftest_task(void *arg)
 
 void myogrip_selftest_start(void)
 {
+    bool live_menu_ok = live_menu_selftest();
+    ESP_LOGI(TAG, "LIVE MENUS: %s", live_menu_ok ? "PASS" : "FAIL");
+    if (!live_menu_ok) return;
+
     BaseType_t result = xTaskCreate(
         selftest_task,
         "myogrip_test",
