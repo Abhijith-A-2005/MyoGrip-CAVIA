@@ -1,7 +1,8 @@
 # Dashboard with firmware EMG and keyboard
 
-Close other serial monitors and use the flashed shared-input firmware. No new
-firmware build is required for this checkpoint.
+Close other serial monitors and use shared-input firmware when a board is available.
+The dashboard also runs normally without the board. The separate USB startup fix
+requires one firmware build/flash to install; reconnecting does not flash or reset it.
 
 ```powershell
 python -m pytest tests/server -q
@@ -9,8 +10,10 @@ npm --prefix src/dashboard/web run build
 python -m cavia.server --device-port COM14 --user 1
 ```
 
-The browser at http://127.0.0.1:8000 shows **Firmware FSM · EMG + keyboard**.
-Menus, selected grip, return state and progress come from advancing board snapshots.
+The browser at http://127.0.0.1:8000 initially uses **Keyboard simulation**.
+Vision locks generate menus even when USB is absent or stale. Fresh advancing
+board telemetry and the released-key handshake select **Firmware FSM · EMG + keyboard**;
+its menus, selected grip, return state and progress come from actual board snapshots.
 The keyboard remains active: W/S navigate, A confirms/closes, D opens the Full
 Menu/opens the grip, E backs out/releases. Heartbeats preserve a held key while
 this browser remains active. Blur, hidden tabs, socket loss and missing heartbeats
@@ -53,8 +56,17 @@ python -m cavia.server --device-port COM14 --replay data/vision/samples/syntheti
 This replays only vision (cup/handle); EMG and keyboard still reach the actual
 board. Stop this server before launching the live-camera command.
 
-Omit `--device-port` to use the existing keyboard simulation with no firmware.
-This checkpoint keeps that explicit choice. Automatic offline fallback and
-handover when a configured board disappears are the next checkpoint. Until then,
-a configured board that goes stale displays its last reported state with a
-warning; there is no local progress animation pretending to be firmware.
+Omit `--device-port` for ordinary keyboard-only operation. With a port configured,
+unavailable firmware automatically selects keyboard simulation, while the USB
+reader continues retrying failed connections. Returning firmware takes over only
+after its released-key handshake. Neither simulated progress nor keys held across
+a handover are copied to the board; release and press again. This does not require
+a browser reload or server restart.
+
+Simulator and firmware preference stores are separate when a port is configured.
+The simulator uses `<db-stem>-keyboard<db-suffix>`, while real EMG uses the original
+`--db` file. User IDs are synchronized; counts/history follow the active controller.
+Without a device port, keyboard mode continues to use the original `--db` file.
+
+Calibration is held in RAM by the existing firmware. A board reboot may require
+calibration again; reconnecting the dashboard does not deliberately clear it.

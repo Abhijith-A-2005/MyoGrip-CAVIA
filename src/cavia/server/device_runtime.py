@@ -44,6 +44,7 @@ class DeviceDashboardRuntime:
         self.resume_after = clock()
         self.frozen = False
         self.calibration_mode = False
+        self.menus_enabled = True
         self.keyboard_session = None
         self.keyboard_sequence = self.keyboard_mask = 0
         self.browser_keys_at = clock()
@@ -379,7 +380,7 @@ class DeviceDashboardRuntime:
 
     def _offer_menu(self):
         packet, vision = self.snapshot, self.vision
-        if (packet is None or vision is None or self.frozen or self.calibration_mode or not self.keyboard_ready()
+        if (not self.menus_enabled or packet is None or vision is None or self.frozen or self.calibration_mode or not self.keyboard_ready()
                 or not packet["menu_ready"] or packet["state"] not in MENU_STATES
                 or self.clock() - vision["ts"] > self.result_timeout
                 or vision.get("state") != "LOCKED" or vision.get("stable") is not True):

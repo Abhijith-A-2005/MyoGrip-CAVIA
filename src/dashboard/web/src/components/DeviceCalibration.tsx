@@ -14,8 +14,8 @@ export function DeviceCalibration() {
   const menu = useDashboard((s) => ["HOME", "ADAPTIVE", "FULL"].includes(s.fsm?.state ?? ""));
   const released = useDashboard((s) => s.held.length === 0);
   const link = useDashboard((s) => s.link);
-  if (system?.controller !== "firmware") return null;
-  const connected = link === "open" && system.hand_link.status === "connected";
+  if (!system?.device_configured && system?.controller !== "firmware") return null;
+  const connected = system.controller === "firmware" && link === "open" && system.hand_link.status === "connected";
   const setup = !!system.calibration_mode;
   const ready = connected && released && home && setup;
   const state = !connected ? "Firmware unavailable" : system.hand_link.armed ? "EMG armed"
@@ -25,6 +25,7 @@ export function DeviceCalibration() {
     <section className="drawer-group" aria-label="Firmware EMG calibration">
       <h3 className="drawer-group-title">Firmware EMG calibration</h3>
       <p className="drawer-note" role="status">{state}</p>
+      {!connected && <p className="drawer-note">{system.fallback_reason || system.hand_link.detail}</p>}
       {!setup ? (
         <>
           <p className="drawer-note">Start calibration clears the previous calibration and pauses menu loading.</p>

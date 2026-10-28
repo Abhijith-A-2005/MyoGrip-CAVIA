@@ -15,9 +15,8 @@ from cavia.core.contracts import Condition
 from .app import create_app
 from .history import read_history
 from .device_link import DeviceLink
-from .device_runtime import DeviceDashboardRuntime
+from .combined_runtime import CombinedDashboardRuntime
 from .hub import Hub
-from .live_runtime import DashboardRuntime
 from .session import Session
 from .tasks import DEFAULT_TASKS, load_tasks
 from .vision_feed import ReplayVision, VisionFeed
@@ -76,6 +75,8 @@ def system_status(feed, frames=None):
 
 def runtime_system(status, runtime, device=None):
     """Describe the active controller without claiming stale firmware is live."""
+    if isinstance(runtime, CombinedDashboardRuntime):
+        return {**status, **runtime.status()}
     if device is None:
         return {**status, "hand_link": {"status": "disconnected", "battery_pct": None},
                 "controller": "keyboard", "emg_source": "keyboard"}
@@ -228,16 +229,14 @@ def main(argv=None):
         )
 
         device = None
-        runtime_class = DashboardRuntime
         runtime_options = {}
         if args.device_port:
             device = DeviceLink(args.device_port, args.device_baud)
             device.start()
             stack.callback(device.close)
-            runtime_class = DeviceDashboardRuntime
             runtime_options["device"] = device
 
-        runtime = runtime_class(
+        runtime = CombinedDashboardRuntime(
             hub,
             session,
             db=args.db,
@@ -290,7 +289,7 @@ def main(argv=None):
             on_key_state=runtime.keyboard_state,
             frames=frames,
             on_shutdown=stack.close,
-            history=lambda user: read_history(args.db, user),
+            history=lambda user: read_history(runtime.history_db, user),
         )
 
         runtime.start()

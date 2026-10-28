@@ -81,6 +81,8 @@ export type SystemMsg = {
   hand_link: { status: HealthStatus; battery_pct: number | null; detail?: string;
     calibrated?: boolean; armed?: boolean; calibration?: string; calibration_log?: string[] };
   controller?: "firmware" | "keyboard";
+  device_configured?: boolean;
+  fallback_reason?: string;
   keyboard_ready?: boolean;
   calibration_mode?: boolean;
   emg_source: "device" | "keyboard" | "replay";

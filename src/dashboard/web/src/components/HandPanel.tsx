@@ -55,6 +55,8 @@ export function HandPanel({ focused }: { focused: boolean }) {
   const moving = MOVE_STATES.includes(state);
   const say = stale
     ? { text: "Firmware data unavailable. Showing the last reported state.", tone: "warn" as const }
+    : system?.device_configured && !firmware
+      ? { text: "Firmware unavailable. Vision menus and keyboard simulation remain available.", tone: "notice" as const }
     : system?.calibration_mode
       ? { text: "Calibration mode. Open experimenter controls to capture EMG.", tone: "notice" as const }
       : instruction(fsm);
