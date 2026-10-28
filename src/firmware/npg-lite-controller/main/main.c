@@ -431,12 +431,12 @@ static void myogrip_publish(const myogrip_live_t *live, mg_keyboard_t *keys)
   const mg_fsm_t *f = &live->fsm;
   mg_keyboard_expire(keys, (uint64_t)(esp_timer_get_time() / 1000));
   ESP_LOGI("MYOGRIP_FSM",
-           "MGSTATE {\"v\":1,\"wire\":2,\"boot\":%lu,\"revision\":%lu,"
-           "\"keyboard_wire\":1,\"keyboard_session\":%lu,\"keyboard_sequence\":%lu,"
+           "MGSTATE {\"v\":1,\"wire\":3,\"boot\":%lu,\"revision\":%lu,"
+           "\"keyboard_wire\":2,\"keyboard_session\":%lu,\"keyboard_sequence\":%lu,"
            "\"keyboard_mask\":%u,\"keyboard_connected\":%u,"
            "\"rest\":%u,\"menu_ready\":%u,\"samples\":%lu,\"calibrated\":%u,"
            "\"armed\":%u,\"activity\":\"%s\",\"gesture\":\"%s\","
-           "\"gesture_seq\":%lu,\"state\":\"%s\",\"menu_id\":%lu,"
+           "\"gesture_source\":\"%s\",\"gesture_seq\":%lu,\"state\":\"%s\",\"menu_id\":%lu,"
            "\"loaded\":%u,\"selected\":%u,\"active\":%d,"
            "\"progress\":%.4f,\"gate\":%u,\"returning\":%u,"
            "\"adaptive_count\":%u,\"adaptive\":[%d,%d,%d,%d],"
@@ -444,11 +444,11 @@ static void myogrip_publish(const myogrip_live_t *live, mg_keyboard_t *keys)
            (unsigned long)myogrip_boot, (unsigned long)live->revision,
            (unsigned long)keys->session, (unsigned long)keys->sequence,
            (unsigned)keys->mask, (unsigned)keys->connected,
-           live->rest_samples, (unsigned)myogrip_live_menu_ready(live),
+           live->rest_samples, (unsigned)myogrip_live_menu_ready_shared(live, keys),
            (unsigned long)live->samples, (unsigned)live->calibrated,
            (unsigned)live->armed, live->activity,
            emg_gesture_name(live->last_gesture),
-           (unsigned long)live->gesture_seq, mg_state_name(f->state),
+           live->gesture_source, (unsigned long)live->gesture_seq, mg_state_name(f->state),
            (unsigned long)f->menu.menu_id, (unsigned)f->menu_loaded,
            (unsigned)f->selected, (int)f->active_grip,
            (double)f->grip_progress, (unsigned)f->wait_release,
@@ -461,9 +461,11 @@ static void myogrip_publish(const myogrip_live_t *live, mg_keyboard_t *keys)
 }
 
 /* Called only by the acquisition task, alongside normal FSM input. */
-static bool myogrip_apply_menu(myogrip_live_t *live, const mg_command_t *request)
+static bool myogrip_apply_menu(myogrip_live_t *live, const mg_keyboard_t *keys,
+                                const mg_command_t *request)
 {
   return request->code == '@' && request->boot == myogrip_boot &&
+      myogrip_live_menu_ready_shared(live, keys) &&
       myogrip_live_load_menu(live, &request->menu, request->revision,
                              request->preserve_selection);
 }
@@ -522,11 +524,11 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
                  "\"sequence\":%lu,\"accepted\":%u}",
                  (unsigned long)myogrip_boot, (unsigned long)request.session,
                  (unsigned long)request.sequence, (unsigned)accepted);
-        myogrip_publish(&live, &keyboard);
+        /* Keyboard heartbeats use the regular ADC-frame snapshots. */
       } else if (command == '@') {
         bool accepted = !recovery_pending &&
             get_adc_pool_overflows() == handled_overflows &&
-            myogrip_apply_menu(&live, &request);
+            myogrip_apply_menu(&live, &keyboard, &request);
         ESP_LOGI("MYOGRIP_FSM",
                  "MGACK {\"boot\":%lu,\"menu_id\":%lu,"
                  "\"accepted\":%u,\"revision\":%lu}",
@@ -544,6 +546,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         emg_thresholds_t current_thresholds;
         if (!emg_calibration_get_thresholds(&current_thresholds)) {
           myogrip_live_gap(&live);
+          mg_keyboard_invalidate(&keyboard);
           emg_activity_reset();
           emg_episode_reset();
           emg_gesture_reset();
@@ -562,6 +565,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         emg_episode_reset();
         emg_gesture_reset();
         myogrip_live_gap(&live);
+        mg_keyboard_invalidate(&keyboard);
         previous_activity = NULL;
         emg_log_samples = 0;
 
@@ -698,7 +702,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
             emg_gesture_reset();
           }
 
-          myogrip_live_sample(&live, activity, gesture);
+          myogrip_live_sample_shared(&live, &keyboard,
+              (uint64_t)(esp_timer_get_time() / 1000), activity, gesture);
 
           if (gesture != EMG_GESTURE_NONE) {
             ESP_LOGI("MYOGRIP_EMG", "GESTURE %s",
@@ -739,6 +744,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         battery_reading = battery_reading / PACKET_LEN;
         if (!battery_check(battery_reading)) {
           myogrip_live_gap(&live);
+          mg_keyboard_invalidate(&keyboard);
           myogrip_publish(&live, &keyboard);
           // ADC was intentionally stopped. End this task without recovery.
           vTaskDelete(NULL);

@@ -34,7 +34,7 @@ def snapshot(link, session, sequence):
 
 def run(link):
     state = link.fresh_state()
-    require(state.get("keyboard_wire") == 1, "Flash the keyboard-protocol checkpoint first")
+    require(state.get("keyboard_wire", 0) >= 1, "Flash the keyboard-protocol checkpoint first")
     session = state["keyboard_session"] + 1
     require(session < 0xFFFFFFFF, "Session counter exhausted; reset the board")
 
