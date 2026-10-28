@@ -35,6 +35,7 @@ export function connectBackend(url: string): Transport {
     },
     close: () => {
       closed = true;
+      setLink("reconnecting");
       window.clearTimeout(timer);
       socket?.close();
     },

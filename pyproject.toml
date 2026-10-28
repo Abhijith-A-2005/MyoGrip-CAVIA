@@ -12,6 +12,7 @@ dependencies = []
 [project.optional-dependencies]
 vision = ["ultralytics", "opencv-python", "numpy", "python-dotenv"]
 dashboard = ["fastapi", "uvicorn[standard]"]
+device = ["pyserial"]
 sim = ["pygame-ce"]
 dev = ["pytest", "httpx2"]
 

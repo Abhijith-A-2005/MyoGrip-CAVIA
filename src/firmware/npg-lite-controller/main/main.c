@@ -19,19 +19,32 @@
 // everyone. By supporting us with your purchase, you help spread innovation and
 // open science. Thank you for being part of this journey with us!
 #include "myogrip_selftest.h"
+#include "myogrip_live.h"
+#include "myogrip_wire.h"
+#include "myogrip_keyboard.h"
+#include "esp_timer.h"
+#include "esp_random.h"
 #include "common.h"
 #include "driver/gpio.h"
 #include "esp_adc/adc_continuous.h"
 #include "esp_pm.h"
 #include "gap.h"
 #include "gatt.h"
+#include <math.h>
 #include "hal/adc_types.h"
 #include "hal/gpio_types.h"
 #include "neopixel.h"
 #include "soc/soc_caps.h"
 #include <stdint.h>
+#include "emg_signal.h"
+#include "emg_calibration.h"
+#include "emg_episode.h"
+#include "emg_gesture.h"
+#include "freertos/queue.h"
+#include <ctype.h>
 
-#define SAMPLING_RATE 250
+
+#define SAMPLING_RATE EMG_SAMPLE_RATE_HZ
 #define PACKET_LEN 25
 #define NUM_CHANNELS 4 // 3 BioAmp channels, 1 Battery channel
 
@@ -63,6 +76,87 @@ uint8_t channels[NUM_CHANNELS] = {0, 1, 2, 6};
 
 const char *TAG = "NPG-IDF";
 
+static QueueHandle_t emg_command_queue;
+static uint32_t myogrip_boot;
+
+static void emg_console_task(void *arg)
+{
+  (void)arg;
+
+  setvbuf(stdin, NULL, _IONBF, 0);
+
+  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h v x ? | m=demo menu | @=menu packet | K=keyboard packet");
+
+  char line[192];
+  unsigned used = 0;
+  bool collecting = false;
+  bool overflow = false;
+
+  while (1) {
+    int input = getchar();
+
+    if (input == EOF) {
+      clearerr(stdin);
+      vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
+
+    if (collecting) {
+      if (input == '\r' || input == '\n') {
+        mg_command_t request;
+        line[used] = '\0';
+        bool parsed = !overflow && (line[0] == '@'
+            ? mg_parse_menu_line(line, &request)
+            : mg_parse_keyboard_line(line, &request));
+        if (parsed) {
+          if (xQueueSend(emg_command_queue, &request, 0) != pdPASS) {
+            ESP_LOGW("MYOGRIP_CONSOLE", "Command queue full; packet dropped");
+          }
+        } else {
+          ESP_LOGW("MYOGRIP_CONSOLE", "Malformed %s packet rejected",
+                   line[0] == '@' ? "menu" : "keyboard");
+        }
+        collecting = false;
+      } else if (input == 0 || used >= sizeof(line) - 1) {
+        /* Discard the whole packet through its line ending. */
+        overflow = true;
+      } else if (!overflow) {
+        line[used++] = (char)input;
+      }
+      continue;
+    }
+
+    if (input == '@' || input == 'K') {
+      collecting = true;
+      overflow = false;
+      used = 1;
+      line[0] = (char)input;
+      continue;
+    }
+
+    if (input == '\r' || input == '\n') {
+      continue;
+    }
+
+    char command = (char)tolower((unsigned char)input);
+
+    if (command != 'r' && command != 'f' &&
+        command != 'e' && command != 'h' &&
+        command != 'v' && command != 'x' && command != '?' &&
+        command != 'm') {
+      ESP_LOGW("MYOGRIP_CONSOLE",
+               "Unknown command; use r f e h v x ? m");
+      continue;
+    }
+
+    // The acquisition task owns calibration and FSM state.
+    mg_command_t request = {.code = command};
+    if (xQueueSend(emg_command_queue, &request, 0) != pdPASS) {
+      ESP_LOGW("MYOGRIP_CONSOLE", "Command queue full; command dropped");
+    }
+  }
+}
+
 /* Library function declarations */
 void ble_store_config_init(void);
 
@@ -73,6 +167,39 @@ static void nimble_host_config_init(void);
 static void nimble_host_task(void *param);
 
 static TaskHandle_t adc_conv_task_handle;
+static portMUX_TYPE adc_stats_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t adc_pool_overflows = 0;
+
+static uint32_t get_adc_pool_overflows(void)
+{
+  // The interrupt updates this counter; read it under the same lock.
+  portENTER_CRITICAL(&adc_stats_lock);
+  uint32_t count = adc_pool_overflows;
+  portEXIT_CRITICAL(&adc_stats_lock);
+
+  return count;
+}
+
+static bool IRAM_ATTR pool_overflow_cb(
+    adc_continuous_handle_t handle,
+    const adc_continuous_evt_data_t *edata,
+    void *user_data)
+{
+  (void)handle;
+  (void)edata;
+  (void)user_data;
+
+  portENTER_CRITICAL_ISR(&adc_stats_lock);
+  adc_pool_overflows++;
+  portEXIT_CRITICAL_ISR(&adc_stats_lock);
+
+  // Wake the acquisition task so it can drain buffered data.
+  BaseType_t must_yield = pdFALSE;
+  vTaskNotifyGiveFromISR(adc_conv_task_handle, &must_yield);
+
+  return must_yield == pdTRUE;
+}
+
 static bool IRAM_ATTR conv_done_cb(adc_continuous_handle_t handle,
                                    const adc_continuous_evt_data_t *edata,
                                    void *user_data) {
@@ -144,9 +271,32 @@ void continuous_adc_init() {
   ESP_ERROR_CHECK(adc_continuous_config(adc_handle, &adc_conf));
   adc_continuous_evt_cbs_t cbs = {
       .on_conv_done = conv_done_cb,
+      .on_pool_ovf = pool_overflow_cb,
   };
   ESP_ERROR_CHECK(
       adc_continuous_register_event_callbacks(adc_handle, &cbs, NULL));
+}
+
+static uint32_t adc_restart_after_gap(void)
+{
+#ifdef DEBUG
+  gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+
+  ESP_ERROR_CHECK(adc_continuous_stop(adc_handle));
+  ESP_ERROR_CHECK(adc_continuous_flush_pool(adc_handle));
+
+  // Discard notifications belonging to the old acquisition.
+  ulTaskNotifyTake(pdTRUE, 0);
+
+  // Snapshot while stopped so later overflows remain detectable.
+  uint32_t handled_overflows = get_adc_pool_overflows();
+
+  ESP_LOGW("MYOGRIP_ADC",
+           "Acquisition gap: discarded buffered data; restarting ADC");
+
+  ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
+  return handled_overflows;
 }
 
 typedef struct {
@@ -162,7 +312,7 @@ static const batt_point_t batt_table[] = {
 
 const uint8_t batt_table_len = sizeof(batt_table) / sizeof(batt_table[0]);
 
-void battery_check(int battery_reading) {
+static bool battery_check(int battery_reading) {
   float voltage = (battery_reading / 4095.0) * 3.3 - 0.14;
 #ifdef DEBUG
   ESP_LOGI("NPG-IDF", "vol bat: %f", voltage);
@@ -193,7 +343,131 @@ void battery_check(int battery_reading) {
     nimble_port_stop(); // stop ble
     adc_continuous_stop(adc_handle);
     ESP_LOGE("NPG-IDF", "Low Battery, please charge device before use");
+    return false;
   }
+
+  return true;
+}
+
+static bool flex_active;
+static bool ext_active;
+
+static void emg_activity_reset(void)
+{
+  flex_active = false;
+  ext_active = false;
+}
+
+static const char *emg_activity_update(
+    const float rms[EMG_CHANNEL_COUNT], bool ready)
+{
+  emg_thresholds_t thresholds;
+
+  if (!emg_calibration_get_thresholds(&thresholds)) {
+    emg_activity_reset();
+    return "UNCALIBRATED";
+  }
+
+  if (!ready) {
+    emg_activity_reset();
+    return "WARMUP";
+  }
+
+  for (unsigned ch = 0; ch < 2; ch++) {
+    if (!isfinite(rms[ch]) || rms[ch] < 0.0f) {
+      emg_activity_reset();
+      return "INVALID";
+    }
+  }
+
+  // Once active, require crossing the lower OFF threshold to release.
+  flex_active = flex_active
+      ? rms[0] > thresholds.off[0]
+      : rms[0] >= thresholds.on[0];
+
+  ext_active = ext_active
+      ? rms[1] > thresholds.off[1]
+      : rms[1] >= thresholds.on[1];
+
+  if (!flex_active && !ext_active) {
+    return "REST";
+  }
+
+  if (flex_active && !ext_active) {
+    return "FLEX_ACTIVE";
+  }
+
+  if (ext_active && !flex_active) {
+    return "EXT_ACTIVE";
+  }
+
+  // Both channels are active: compare their calibrated scales.
+  float flex_normalized = fmaxf(
+      0.0f,
+      (rms[0] - thresholds.rest[0]) /
+      (thresholds.reference[0] - thresholds.rest[0]));
+
+  float ext_normalized = fmaxf(
+      0.0f,
+      (rms[1] - thresholds.rest[1]) /
+      (thresholds.reference[1] - thresholds.rest[1]));
+
+  if (flex_normalized >
+      EMG_CAL_DOMINANCE_RATIO * ext_normalized) {
+    return "FLEX_ACTIVE";
+  }
+
+  if (ext_normalized >
+      EMG_CAL_DOMINANCE_RATIO * flex_normalized) {
+    return "EXT_ACTIVE";
+  }
+
+  return "INVALID";
+}
+
+/* One snapshot per ADC frame (about 10 Hz), not one log per sample. */
+static void myogrip_publish(const myogrip_live_t *live, mg_keyboard_t *keys)
+{
+  const mg_fsm_t *f = &live->fsm;
+  mg_keyboard_expire(keys, (uint64_t)(esp_timer_get_time() / 1000));
+  ESP_LOGI("MYOGRIP_FSM",
+           "MGSTATE {\"v\":1,\"wire\":3,\"boot\":%lu,\"revision\":%lu,"
+           "\"keyboard_wire\":2,\"keyboard_session\":%lu,\"keyboard_sequence\":%lu,"
+           "\"keyboard_mask\":%u,\"keyboard_connected\":%u,"
+           "\"rest\":%u,\"menu_ready\":%u,\"samples\":%lu,\"calibrated\":%u,"
+           "\"armed\":%u,\"activity\":\"%s\",\"gesture\":\"%s\","
+           "\"gesture_source\":\"%s\",\"gesture_seq\":%lu,\"state\":\"%s\",\"menu_id\":%lu,"
+           "\"loaded\":%u,\"selected\":%u,\"active\":%d,"
+           "\"progress\":%.4f,\"gate\":%u,\"returning\":%u,"
+           "\"adaptive_count\":%u,\"adaptive\":[%d,%d,%d,%d],"
+           "\"full_count\":%u,\"full\":[%d,%d,%d,%d]}",
+           (unsigned long)myogrip_boot, (unsigned long)live->revision,
+           (unsigned long)keys->session, (unsigned long)keys->sequence,
+           (unsigned)keys->mask, (unsigned)keys->connected,
+           live->rest_samples, (unsigned)myogrip_live_menu_ready_shared(live, keys),
+           (unsigned long)live->samples, (unsigned)live->calibrated,
+           (unsigned)live->armed, live->activity,
+           emg_gesture_name(live->last_gesture),
+           live->gesture_source, (unsigned long)live->gesture_seq, mg_state_name(f->state),
+           (unsigned long)f->menu.menu_id, (unsigned)f->menu_loaded,
+           (unsigned)f->selected, (int)f->active_grip,
+           (double)f->grip_progress, (unsigned)f->wait_release,
+           (unsigned)f->returning, (unsigned)f->menu.adaptive_count,
+           (int)f->menu.adaptive[0], (int)f->menu.adaptive[1],
+           (int)f->menu.adaptive[2], (int)f->menu.adaptive[3],
+           (unsigned)f->menu.full_count,
+           (int)f->menu.full[0], (int)f->menu.full[1],
+           (int)f->menu.full[2], (int)f->menu.full[3]);
+}
+
+/* Called only by the acquisition task, alongside normal FSM input. */
+static bool myogrip_apply_menu(myogrip_live_t *live, const mg_keyboard_t *keys,
+                                const mg_command_t *request)
+{
+  return request->code == '@' && request->boot == myogrip_boot &&
+      myogrip_live_menu_ready_shared(live, keys) &&
+      myogrip_live_load_menu(live, &request->menu, request->revision,
+                             request->preserve_selection);
 }
 
 static void
@@ -206,29 +480,182 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   uint8_t counter = 0;
 
   int battery_reading = 0;
+  uint32_t samples_per_channel = 0;
+  uint32_t frames_since_log = 0;
+  uint32_t frame_bytes = 0;
+  uint32_t partial_chunks = 0;
+  uint32_t handled_overflows = 0;
+  uint32_t recoveries = 0;
+  bool recovery_pending = false;
+
+  float emg_rms[EMG_CHANNEL_COUNT] = {0};
+  uint32_t emg_log_samples = 0;
+  const char *previous_activity = NULL;
+
+  myogrip_live_t live;
+  myogrip_live_init(&live);
+  mg_keyboard_t keyboard;
+  mg_keyboard_init(&keyboard);
 
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
+  emg_signal_reset();
+  emg_episode_reset();
+  emg_gesture_reset();
   continuous_adc_init();
-  adc_continuous_start(adc_handle);
+  ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
+
   while (1) {
-    while (streaming) {
+
+    // Sleep until the ADC reports available data.
+    if (!recovery_pending) {
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
+
+    mg_command_t request;
+    while (xQueueReceive(emg_command_queue, &request, 0) == pdPASS) {
+      char command = request.code;
+      if (command == 'K') {
+        bool accepted = request.boot == myogrip_boot &&
+            mg_keyboard_receive(&keyboard, request.session, request.sequence,
+                                request.key_mask,
+                                (uint64_t)(esp_timer_get_time() / 1000));
+        ESP_LOGI("MYOGRIP_FSM",
+                 "MGKEYACK {\"boot\":%lu,\"session\":%lu,"
+                 "\"sequence\":%lu,\"accepted\":%u}",
+                 (unsigned long)myogrip_boot, (unsigned long)request.session,
+                 (unsigned long)request.sequence, (unsigned)accepted);
+        /* Keyboard heartbeats use the regular ADC-frame snapshots. */
+      } else if (command == '@') {
+        bool accepted = !recovery_pending &&
+            get_adc_pool_overflows() == handled_overflows &&
+            myogrip_apply_menu(&live, &keyboard, &request);
+        ESP_LOGI("MYOGRIP_FSM",
+                 "MGACK {\"boot\":%lu,\"menu_id\":%lu,"
+                 "\"accepted\":%u,\"revision\":%lu}",
+                 (unsigned long)myogrip_boot,
+                 (unsigned long)request.menu.menu_id,
+                 (unsigned)accepted, (unsigned long)live.revision);
+        /* Acknowledge the exact state before processing the next ADC frame. */
+        myogrip_publish(&live, &keyboard);
+      } else if (command == 'm') {
+        ESP_LOGI("MYOGRIP_FSM", "DEMO MENU: %s",
+                 myogrip_live_demo_menu(&live) ? "loaded" :
+                 "ignored; validate calibration, rest, and return HOME first");
+      } else {
+        emg_calibration_command(command);
+        emg_thresholds_t current_thresholds;
+        if (!emg_calibration_get_thresholds(&current_thresholds)) {
+          myogrip_live_gap(&live);
+          mg_keyboard_invalidate(&keyboard);
+          emg_activity_reset();
+          emg_episode_reset();
+          emg_gesture_reset();
+        }
+      }
+    }
+
+
+      if (recovery_pending ||
+          get_adc_pool_overflows() != handled_overflows) {
+        // Never join samples collected on opposite sides of a gap.
+        frame_bytes = 0;
+        emg_signal_reset();
+        emg_calibration_reset();
+        emg_activity_reset();
+        emg_episode_reset();
+        emg_gesture_reset();
+        myogrip_live_gap(&live);
+        mg_keyboard_invalidate(&keyboard);
+        previous_activity = NULL;
+        emg_log_samples = 0;
+
+        // Mark a discontinuity in the existing BLE sample counter.
+        counter++;
+
+        handled_overflows = adc_restart_after_gap();
+        recoveries++;
+        recovery_pending = false;
+      }
+
+    // Drain all buffered data before waiting again.
+    while (1) {
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 1);
 #endif
-      ret = adc_continuous_read(adc_handle, result, CONV_FRAME_SIZE, &size_ret,
-                                0);
+      uint32_t read_capacity = CONV_FRAME_SIZE - frame_bytes;
 
-      if (ret == ESP_OK && size_ret == CONV_FRAME_SIZE) {
+      size_ret = 0;
+      ret = adc_continuous_read(adc_handle,
+                                result + frame_bytes,
+                                read_capacity,
+                                &size_ret, 0);
+
+      if (get_adc_pool_overflows() != handled_overflows) {
+        recovery_pending = true;
+        break;
+      }
+
+      if (ret == ESP_ERR_TIMEOUT) {
+        // No buffered data remains. Wait for the next notification.
+#ifdef DEBUG
+        gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+        break;
+      }
+
+      if (ret == ESP_OK &&
+          size_ret > 0 &&
+          size_ret <= read_capacity &&
+          size_ret % SOC_ADC_DIGI_RESULT_BYTES == 0) {
+        frame_bytes += size_ret;
+
+        if (frame_bytes < CONV_FRAME_SIZE) {
+          partial_chunks++;
+
+#ifdef DEBUG
+          gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+          // Keep this data and append the next chunk.
+          continue;
+        }
+
+        bool channel_order_valid = true;
+
+        for (int n = 0; n < PACKET_LEN * NUM_CHANNELS; n++) {
+          const adc_digi_output_data_t *sample =
+              (const void *)&result[n * SOC_ADC_DIGI_RESULT_BYTES];
+
+          if (sample->type2.channel != channels[n % NUM_CHANNELS]) {
+            channel_order_valid = false;
+            break;
+          }
+        }
+
+        if (!channel_order_valid) {
+          ESP_LOGE("MYOGRIP_ADC", "Unexpected ADC channel order");
+          recovery_pending = true;
+          break;
+        }
+
+        // The complete frame is ready for the existing decoder.
+        frame_bytes = 0;
         battery_reading = 0;
+
         for (int j = 0; j < PACKET_LEN; j++) {
+          uint16_t raw_emg[EMG_CHANNEL_COUNT] = {0};
+
           chords_packet[j][0] = counter;
           counter++;
+
           for (int i = 0; i < NUM_CHANNELS; i++) {
-            adc_digi_output_data_t *parsed_data =
-                (void *)&result[(i + j * NUM_CHANNELS) *
-                                SOC_ADC_DIGI_RESULT_BYTES];
-            if (i < 3) {
+            const adc_digi_output_data_t *parsed_data =
+                (const void *)&result[(i + j * NUM_CHANNELS) *
+                                      SOC_ADC_DIGI_RESULT_BYTES];
+
+            if (i < EMG_CHANNEL_COUNT) {
+              // Preprocessing uses raw ADC values, before BLE scaling.
+              raw_emg[i] = parsed_data->type2.data;
+
               adc_reading = MAP(parsed_data->type2.data);
               chords_packet[j][1 + i * 2] = (adc_reading >> 8) & 0xFF;
               chords_packet[j][2 + i * 2] = adc_reading & 0xFF;
@@ -237,16 +664,123 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
               battery_reading += adc_reading;
             }
           }
+
+          bool ready = emg_signal_process(raw_emg, emg_rms);
+          emg_calibration_process(emg_rms, ready);
+          const char *activity = emg_activity_update(emg_rms, ready);
+
+          emg_episode_t episode_result;
+          emg_episode_event_t episode_event =
+              emg_episode_update(activity, &episode_result);
+
+          if (episode_event == EMG_EPISODE_BEGIN) {
+            ESP_LOGI("MYOGRIP_EMG",
+                     "EPISODE START %c",
+                     episode_result.direction);
+          } else if (episode_event == EMG_EPISODE_END) {
+            ESP_LOGI("MYOGRIP_EMG",
+                     "EPISODE END %c | span=%lu primary=%lu "
+                     "opposite=%lu ambiguous=%lu (samples)",
+                     episode_result.direction,
+                     (unsigned long)episode_result.span_samples,
+                     (unsigned long)episode_result.primary_samples,
+                     (unsigned long)episode_result.opposite_samples,
+                     (unsigned long)episode_result.ambiguous_samples);
+          }
+
+          emg_thresholds_t gesture_thresholds;
+          emg_gesture_t gesture = EMG_GESTURE_NONE;
+
+          if (emg_calibration_get_thresholds(&gesture_thresholds)) {
+            gesture = emg_gesture_update(
+                activity,
+                episode_event,
+                &episode_result,
+                emg_rms[1],
+                gesture_thresholds.high_extension);
+          } else {
+            emg_gesture_reset();
+          }
+
+          myogrip_live_sample_shared(&live, &keyboard,
+              (uint64_t)(esp_timer_get_time() / 1000), activity, gesture);
+
+          if (gesture != EMG_GESTURE_NONE) {
+            ESP_LOGI("MYOGRIP_EMG", "GESTURE %s",
+                     emg_gesture_name(gesture));
+          }
+
+          if (previous_activity == NULL ||
+              strcmp(previous_activity, activity) != 0) {
+            uint32_t sample_number =
+                samples_per_channel + (uint32_t)j + 1;
+
+            ESP_LOGI("MYOGRIP_EMG",
+                     "ACTIVITY %s -> %s | sample=%lu flex=%.1f ext=%.1f",
+                     previous_activity != NULL
+                         ? previous_activity : "START",
+                     activity,
+                     (unsigned long)sample_number,
+                     (double)emg_rms[0],
+                     (double)emg_rms[1]);
+
+            previous_activity = activity;
+          }
+
+          emg_log_samples++;
+          if (emg_log_samples >= EMG_LOG_INTERVAL_SAMPLES) {
+            emg_log_samples = 0;
+
+            if (ready) {
+              ESP_LOGI("MYOGRIP_EMG",
+                       "%s | RMS flex=%.1f, ext=%.1f, ch3=%.1f",
+                       activity,
+                       (double)emg_rms[0],
+                       (double)emg_rms[1],
+                       (double)emg_rms[2]);
+            }
+          }
         }
         battery_reading = battery_reading / PACKET_LEN;
-        battery_check(battery_reading);
-        // send over ble
-        struct os_mbuf *om =
-            ble_hs_mbuf_from_flat((void *)chords_packet, PACKET_SIZE);
-        if (om) {
-          int rc = ble_gatts_notify_custom(conn_handle, data_char_handle, om);
-          if (rc != 0) {
-            ESP_LOGE(TAG, "Notification failed, rc=%d", rc);
+        if (!battery_check(battery_reading)) {
+          myogrip_live_gap(&live);
+          mg_keyboard_invalidate(&keyboard);
+          myogrip_publish(&live, &keyboard);
+          // ADC was intentionally stopped. End this task without recovery.
+          vTaskDelete(NULL);
+          return;
+        }
+
+        myogrip_publish(&live, &keyboard);
+
+        samples_per_channel += PACKET_LEN;
+        frames_since_log++;
+
+        // 50 frames × 25 samples = about five seconds at 250 Hz.
+        if (frames_since_log >= 50) {
+          ESP_LOGI("MYOGRIP_ADC",
+                   "samples/ch=%lu, streaming=%s, pool_ovf=%lu, "
+                   "partial=%lu, recoveries=%lu",
+                   (unsigned long)samples_per_channel,
+                   streaming ? "on" : "off",
+                   (unsigned long)get_adc_pool_overflows(),
+                   (unsigned long)partial_chunks,
+                   (unsigned long)recoveries);
+          frames_since_log = 0;
+        }
+
+        // START/STOP controls transmission, not local acquisition.
+        if (streaming) {
+          struct os_mbuf *om =
+              ble_hs_mbuf_from_flat((void *)chords_packet, PACKET_SIZE);
+
+          if (om) {
+            int rc =
+                ble_gatts_notify_custom(conn_handle, data_char_handle, om);
+
+            if (rc != 0) {
+              ESP_LOGE(TAG, "Notification failed, rc=%d", rc);
+            }
           }
         }
 
@@ -258,18 +792,31 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 #endif
 
       } else {
-        ESP_LOGE("adc_conv_task", "Corrupted reading from adc, size_ret:%d",
-                 size_ret);
+        frame_bytes = 0;
+        ESP_LOGE("adc_conv_task",
+                 "ADC read failed or invalid payload: err=%s, bytes=%lu",
+                 esp_err_to_name(ret), (unsigned long)size_ret);
+#ifdef DEBUG
+        gpio_set_level(DEBUG_PIN_1, 0);
+#endif
+        recovery_pending = true;
+        break;
       }
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 0);
 #endif
+    }
+    if (recovery_pending) {
+      continue;  // Restart at the outer recovery block; do not re-read stale data.
     }
     vTaskDelay(pdMS_TO_TICKS(100)); // use pdMS_TO_TICKS for portable delay
   }
 }
 
 void app_main(void) {
+  do {
+    myogrip_boot = esp_random();
+  } while (myogrip_boot == 0);
   neopixel_init();
   set_pixel(0, RED, 10);
   /*
@@ -293,7 +840,7 @@ void app_main(void) {
                                .min_freq_mhz = 40,
 #ifndef DEBUG
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-                               .light_sleep_enable = true
+      .light_sleep_enable = false
 #endif
 #endif
   };
@@ -340,6 +887,24 @@ void app_main(void) {
 
   /* Start NimBLE host task thread and return */
   xTaskCreate(nimble_host_task, "NimBLE Host", 4 * 1024, NULL, 5, NULL);
+
+  esp_log_level_set("MYOGRIP_ADC", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_EMG", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_CONSOLE", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_CAL", ESP_LOG_INFO);
+
+  esp_log_level_set("MYOGRIP_FSM", ESP_LOG_INFO);
+
+  emg_command_queue = xQueueCreate(8, sizeof(mg_command_t));
+  ESP_ERROR_CHECK(emg_command_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
+
+  BaseType_t console_rc = xTaskCreate(
+      emg_console_task, "emg_console", 3 * 1024, NULL, 2, NULL);
+
+  ESP_ERROR_CHECK(console_rc == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 
   xTaskCreate(adc_conv_task, "adc_conv_task", 4 * 1024, NULL, 5, NULL);
 

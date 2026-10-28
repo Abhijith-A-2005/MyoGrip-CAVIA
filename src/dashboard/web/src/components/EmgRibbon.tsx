@@ -130,7 +130,8 @@ function KeyPad({ held, moving }: { held: string[]; moving: boolean }) {
 export function EmgRibbon() {
   const emg = useDashboard((s) => s.emg);
   const held = useDashboard((s) => s.held);
-  const source = useDashboard((s) => s.system?.emg_source);
+  const firmware = useDashboard((s) => s.system?.controller === "firmware");
+  const keyboardReady = useDashboard((s) => s.system?.keyboard_ready);
   const state = useDashboard((s) => s.fsm?.state ?? "HOME");
   const latest = emg.length ? emg[emg.length - 1].at : -Infinity;
   const activity = lastActivity(emg);
@@ -148,7 +149,7 @@ export function EmgRibbon() {
   return (
     <footer className="ribbon" aria-label="EMG events">
       <div className="ribbon-left">
-        <p className="ribbon-caption">EMG</p>
+        <p className="ribbon-caption">{firmware ? "EMG + keys" : "Keyboard"}</p>
         <Meter label="Flexor" kind="flex" on={moving && (activity === "FLEX_ACTIVE" || activity === "INVALID")} />
         <Meter label="Extensor" kind="ext" on={moving && (activity === "EXT_ACTIVE" || activity === "INVALID")} />
       </div>
@@ -189,7 +190,9 @@ export function EmgRibbon() {
         )}
       </div>
 
-      {source === "keyboard" && <KeyPad held={held} moving={moving} />}
+      <div title={firmware && !keyboardReady ? "Waiting for the firmware keyboard handshake" : "W/S navigate, A confirm/close, D full/open, E back/release"}>
+        <KeyPad held={held} moving={moving} />
+      </div>
     </footer>
   );
 }

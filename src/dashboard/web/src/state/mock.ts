@@ -338,7 +338,7 @@ export function startMock(params: URLSearchParams): Transport {
         }
         setHeld([...keys.held]);
         publishFsm(now());
-      } else {
+      } else if (msg.type === "control") {
         const c = msg.data;
         if (c.action === "start_trial") {
           if (trialActive) return reject(c.action, "A trial is already running");
@@ -369,7 +369,7 @@ export function startMock(params: URLSearchParams): Transport {
           register(user);
           emit({ type: "users", data: users() });
           return;
-        } else {
+        } else if (c.action === "set_session") {
           const next = c.participant.trim().toUpperCase();
           if (trialActive || restActive) return reject(c.action, "End the current trial or rest before changing the session");
           if (!PARTICIPANT_ID.test(next)) return reject(c.action, "Use letters, digits, - or _ (up to 24 characters) for the participant ID");
