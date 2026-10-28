@@ -9,6 +9,63 @@ import time
 from .frames import Frame
 
 
+class TwoStagePipeline:
+    """Pure detection-to-message adapter; capture and YOLO remain in their workers."""
+
+    def __init__(self):
+        from cavia.vision.detection import STAGE2_DELAY_S
+        from cavia.vision.vision_state import TwoStageTracker
+
+        self.tracker = TwoStageTracker(stage2_delay=STAGE2_DELAY_S)
+
+    def reset(self):
+        self.tracker.reset()
+
+    @property
+    def out(self):
+        return self.tracker.out
+
+    def process(self, boxes, names, frame_shape, now):
+        from cavia.vision.detection import (
+            CROSS_HALF_SIZE, circle_radius, select_candidate, select_object_candidate,
+        )
+        from cavia.vision.regions import normalize_rect
+
+        height, width = frame_shape[:2]
+        center = (width // 2, height // 2)
+        radius = circle_radius(frame_shape)
+        tracker = self.tracker
+        if tracker.cross_visible(now):
+            candidate = select_candidate(
+                boxes, names, frame_shape, center, only_object=tracker.locked_object,
+            )
+        elif tracker.stage == 1:
+            candidate = select_object_candidate(boxes, names, frame_shape, center, radius)
+        else:
+            candidate = None  # Keep the object menu while the settling timer runs.
+
+        output = tracker.update(candidate, now)
+        stage = ("object" if tracker.stage == 1 else
+                 "region" if tracker.cross_visible(now) else "settling")
+        object_box = region_box = None
+        if candidate and candidate["object"] == output["object"]:
+            object_box = normalize_rect(candidate["box"], frame_shape)
+            if candidate["region"] == output["region"] and candidate.get("region_box"):
+                region_box = normalize_rect(candidate["region_box"], frame_shape)
+        return {
+            **output,
+            "box": object_box,
+            "region_box": region_box,
+            "targeting": {
+                "stage": stage,
+                "frame_size": [width, height],
+                "center": list(center),
+                "radius": radius,
+                "cross_half_size": CROSS_HALF_SIZE,
+            },
+        }
+
+
 class LiveVision:
     def __init__(self, preview_fps=20, jpeg_quality=75):
         self.preview_fps = preview_fps
@@ -185,10 +242,6 @@ class LiveVision:
         try:
             from ultralytics import YOLO
 
-            from cavia.vision.detection import select_candidate
-            from cavia.vision.regions import normalize_rect
-            from cavia.vision.vision_state import RegionTracker
-
             weights = (
                 Path(__file__).resolve().parents[1]
                 / "vision"
@@ -196,7 +249,7 @@ class LiveVision:
             )
 
             model = YOLO(str(weights))
-            tracker = RegionTracker()
+            tracker = TwoStagePipeline()
             self._loaded = True
 
             previous_generation = None
@@ -235,6 +288,7 @@ class LiveVision:
                             "source": snapshot["source"],
                             "box": None,
                             "region_box": None,
+                            "targeting": None,
                         },
                         generation,
                     )
@@ -252,17 +306,9 @@ class LiveVision:
 
                 last_sequence = snapshot["sequence"]
                 frame = snapshot["frame"]
-                height, width = frame.shape[:2]
-                reticle = (width // 2, height // 2)
+                now = time.monotonic()
 
                 result = model(frame, verbose=False)[0]
-
-                candidate = select_candidate(
-                    result.boxes,
-                    model.names,
-                    frame.shape,
-                    reticle,
-                )
 
                 # Confirmation or HOME may have happened while YOLO ran.
                 with self._lock:
@@ -287,22 +333,7 @@ class LiveVision:
                     tracker.reset()
                     continue
 
-                output = tracker.update(candidate)
-
-                object_box = None
-                functional_region_box = None
-
-                if candidate and candidate["object"] == output["object"]:
-                    object_box = normalize_rect(
-                        candidate["box"],
-                        frame.shape,
-                    )
-
-                    if candidate["region"] == output["region"]:
-                        functional_region_box = normalize_rect(
-                            candidate["region_box"],
-                            frame.shape,
-                        )
+                output = tracker.process(result.boxes, model.names, frame.shape, now)
 
                 result_sequence += 1
 
@@ -311,8 +342,6 @@ class LiveVision:
                         **output,
                         "source": snapshot["source"],
                         "frame_seq": result_sequence,
-                        "box": object_box,
-                        "region_box": functional_region_box,
                     },
                     generation,
                 )
