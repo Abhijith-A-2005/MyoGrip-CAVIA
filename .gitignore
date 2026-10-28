@@ -47,3 +47,6 @@ src/dashboard/web/dist/
 
 # Vision recordings from live sessions (tracker results; samples/ stays tracked)
 data/vision/recordings/
+
+# Evaluation outputs may contain participant-level data
+data/results/

@@ -15,6 +15,7 @@ dashboard = ["fastapi", "uvicorn[standard]"]
 device = ["pyserial"]
 sim = ["pygame-ce"]
 dev = ["pytest", "httpx2"]
+eval = ["pandas", "scipy", "statsmodels", "matplotlib"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
