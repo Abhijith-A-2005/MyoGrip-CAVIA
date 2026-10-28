@@ -16,6 +16,14 @@ export type HealthStatus =
 /** [x1, y1, x2, y2], normalised 0..1 in frame coordinates. */
 export type Box = [number, number, number, number];
 
+export type Targeting = {
+  stage: "object" | "settling" | "region";
+  frame_size: [number, number];
+  center: [number, number];
+  radius: number;
+  cross_half_size: number;
+};
+
 export type VisionMsg = {
   ts: number;
   frame_seq: number;
@@ -30,6 +38,7 @@ export type VisionMsg = {
   source?: "XIAO" | "LAPTOP";
   box?: Box | null;
   region_box?: Box | null;
+  targeting?: Targeting | null;
 };
 
 export type MenuMsg = {

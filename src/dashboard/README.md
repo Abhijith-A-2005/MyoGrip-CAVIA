@@ -7,6 +7,17 @@ evaluation results.
 It is a **mirror**: it shows what the CAVIA backend sends and never decides menus or FSM transitions.
 The only things it sends back are keyboard EMG keys and experimenter controls.
 
+Live targeting uses the two-stage vision flow: red object-selection circle, green settling circle
+(2 seconds), then a red cross for functional-region selection. A stable new region can replace the
+current region before confirmation. The backend supplies the reticle geometry in source pixels.
+The full camera frame is fitted inside the panel so the large circle stays visible.
+
+After building, run `python -m cavia --user TEST01 --db data/arbitration/dashboard-test.sqlite3`
+from the repository root. In the browser, check object lock, the settling delay, handle-to-body
+region switching, LF pause with continuing preview, and HE back through Full Menu to HOME.
+HOME must restart the red circle. Use a separate test database to keep this check out of study history.
+`npm run test:vision` checks reticle geometry; camera and model behaviour still need this live check.
+
 ## Run
 
 ```bash

@@ -16,14 +16,12 @@
     0 0 40px rgb(3 230 3 / 0.18);
 }
 
-/* The 4:3 frame fills the viewfinder's width, centred vertically (top and bottom strips are cut off). */
+/* Full source frame, fitted inside the wider panel; geometry is set by CameraPanel. */
 .cam-frame {
   position: absolute;
   top: 50%;
-  left: 0;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  transform: translateY(-50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .cam-feed {
@@ -52,7 +50,7 @@
 /* Inside the frame, limited to the visible band (the frame's top and bottom 12.5% are cut off). */
 .cam-vignette {
   position: absolute;
-  inset: 12.5% 0;
+  inset: 0;
   background:
     radial-gradient(120% 90% at 50% 45%, transparent 55%, rgb(1 3 0 / 0.65) 100%),
     linear-gradient(180deg, rgb(1 3 0 / 0.5) 0%, transparent 18%, transparent 80%, rgb(1 3 0 / 0.6) 100%);
@@ -106,25 +104,19 @@
 }
 
 .cam-reticle {
-  transform-origin: 500px 375px;
-  transition: transform 260ms var(--ease-focus);
+  color: #f00;
 }
 
-.cam-reticle[data-locked] {
-  transform: scale(0.68);
+.cam-reticle[data-stage="settling"] {
+  color: #0f0;
 }
 
-.cam-reticle path {
-  fill: none;
-  stroke: var(--glow);
-  stroke-width: 3;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 6px rgb(3 230 3 / 0.8));
-}
-
+.cam-reticle path,
 .cam-reticle circle {
-  fill: var(--glow);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: butt;
 }
 
 .cam-tag {

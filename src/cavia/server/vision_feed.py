@@ -51,7 +51,7 @@ def to_dashboard(result: dict, frame_seq: int) -> dict | None:
         return None
     detected = state != "NO_OBJECT"
     source = result.get("source")
-    return {
+    message = {
         "ts": result.get("ts", 0.0),
         "frame_seq": result.get("frame_seq", frame_seq),
         "state": state,
@@ -66,6 +66,29 @@ def to_dashboard(result: dict, frame_seq: int) -> dict | None:
         "box": _box(result.get("box")) if detected else None,
         "region_box": _box(result.get("region_box")) if detected else None,
     }
+    # Older recordings omit targeting. Never infer a new stage from a committed lock.
+    if "targeting" in result:
+        message["targeting"] = _targeting(result["targeting"])
+    return message
+
+
+def _targeting(value: object) -> dict | None:
+    if not isinstance(value, dict) or value.get("stage") not in {"object", "settling", "region"}:
+        return None
+    size, center = value.get("frame_size"), value.get("center")
+    if not all(isinstance(v, (list, tuple)) and len(v) == 2 for v in (size, center)):
+        return None
+    numbers = [*size, *center, value.get("radius"), value.get("cross_half_size")]
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in numbers):
+        return None
+    w, h = size
+    x, y = center
+    radius, cross = numbers[-2:]
+    if not (w > 0 and h > 0 and 0 <= x <= w and 0 <= y <= h
+            and 0 < radius <= min(w, h) / 2 and 0 < cross <= min(w, h) / 2):
+        return None
+    return {"stage": value["stage"], "frame_size": list(size), "center": list(center),
+            "radius": radius, "cross_half_size": cross}
 
 
 class VisionFeed:
