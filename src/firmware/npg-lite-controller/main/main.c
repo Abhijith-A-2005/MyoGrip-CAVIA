@@ -19,6 +19,9 @@
 // everyone. By supporting us with your purchase, you help spread innovation and
 // open science. Thank you for being part of this journey with us!
 #include "myogrip_selftest.h"
+#include "myogrip_live.h"
+#include "myogrip_wire.h"
+#include "esp_random.h"
 #include "common.h"
 #include "driver/gpio.h"
 #include "esp_adc/adc_continuous.h"
@@ -72,6 +75,7 @@ uint8_t channels[NUM_CHANNELS] = {0, 1, 2, 6};
 const char *TAG = "NPG-IDF";
 
 static QueueHandle_t emg_command_queue;
+static uint32_t myogrip_boot;
 
 static void emg_console_task(void *arg)
 {
@@ -79,7 +83,12 @@ static void emg_console_task(void *arg)
 
   setvbuf(stdin, NULL, _IONBF, 0);
 
-  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h v x ?");
+  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h v x ? | m=demo menu | @=menu packet");
+
+  char line[192];
+  unsigned used = 0;
+  bool collecting = false;
+  bool overflow = false;
 
   while (1) {
     int input = getchar();
@@ -87,6 +96,35 @@ static void emg_console_task(void *arg)
     if (input == EOF) {
       clearerr(stdin);
       vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
+
+    if (collecting) {
+      if (input == '\r' || input == '\n') {
+        mg_command_t request;
+        line[used] = '\0';
+        if (!overflow && mg_parse_menu_line(line, &request)) {
+          if (xQueueSend(emg_command_queue, &request, 0) != pdPASS) {
+            ESP_LOGW("MYOGRIP_CONSOLE", "Menu queue full; packet dropped");
+          }
+        } else {
+          ESP_LOGW("MYOGRIP_CONSOLE", "Malformed menu packet rejected");
+        }
+        collecting = false;
+      } else if (input == 0 || used >= sizeof(line) - 1) {
+        /* Discard the whole packet through its line ending. */
+        overflow = true;
+      } else if (!overflow) {
+        line[used++] = (char)input;
+      }
+      continue;
+    }
+
+    if (input == '@') {
+      collecting = true;
+      overflow = false;
+      used = 1;
+      line[0] = '@';
       continue;
     }
 
@@ -98,14 +136,16 @@ static void emg_console_task(void *arg)
 
     if (command != 'r' && command != 'f' &&
         command != 'e' && command != 'h' &&
-        command != 'v' && command != 'x' && command != '?') {
+        command != 'v' && command != 'x' && command != '?' &&
+        command != 'm') {
       ESP_LOGW("MYOGRIP_CONSOLE",
-               "Unknown command; use r f e h v x ?");
+               "Unknown command; use r f e h v x ? m");
       continue;
     }
 
-    // The acquisition task will own calibration state.
-    if (xQueueSend(emg_command_queue, &command, 0) != pdPASS) {
+    // The acquisition task owns calibration and FSM state.
+    mg_command_t request = {.code = command};
+    if (xQueueSend(emg_command_queue, &request, 0) != pdPASS) {
       ESP_LOGW("MYOGRIP_CONSOLE", "Command queue full; command dropped");
     }
   }
@@ -379,6 +419,44 @@ static const char *emg_activity_update(
   return "INVALID";
 }
 
+/* One snapshot per ADC frame (about 10 Hz), not one log per sample. */
+static void myogrip_publish(const myogrip_live_t *live)
+{
+  const mg_fsm_t *f = &live->fsm;
+  ESP_LOGI("MYOGRIP_FSM",
+           "MGSTATE {\"v\":1,\"wire\":2,\"boot\":%lu,\"revision\":%lu,"
+           "\"rest\":%u,\"menu_ready\":%u,\"samples\":%lu,\"calibrated\":%u,"
+           "\"armed\":%u,\"activity\":\"%s\",\"gesture\":\"%s\","
+           "\"gesture_seq\":%lu,\"state\":\"%s\",\"menu_id\":%lu,"
+           "\"loaded\":%u,\"selected\":%u,\"active\":%d,"
+           "\"progress\":%.4f,\"gate\":%u,\"returning\":%u,"
+           "\"adaptive_count\":%u,\"adaptive\":[%d,%d,%d,%d],"
+           "\"full_count\":%u,\"full\":[%d,%d,%d,%d]}",
+           (unsigned long)myogrip_boot, (unsigned long)live->revision,
+           live->rest_samples, (unsigned)myogrip_live_menu_ready(live),
+           (unsigned long)live->samples, (unsigned)live->calibrated,
+           (unsigned)live->armed, live->activity,
+           emg_gesture_name(live->last_gesture),
+           (unsigned long)live->gesture_seq, mg_state_name(f->state),
+           (unsigned long)f->menu.menu_id, (unsigned)f->menu_loaded,
+           (unsigned)f->selected, (int)f->active_grip,
+           (double)f->grip_progress, (unsigned)f->wait_release,
+           (unsigned)f->returning, (unsigned)f->menu.adaptive_count,
+           (int)f->menu.adaptive[0], (int)f->menu.adaptive[1],
+           (int)f->menu.adaptive[2], (int)f->menu.adaptive[3],
+           (unsigned)f->menu.full_count,
+           (int)f->menu.full[0], (int)f->menu.full[1],
+           (int)f->menu.full[2], (int)f->menu.full[3]);
+}
+
+/* Called only by the acquisition task, alongside normal FSM input. */
+static bool myogrip_apply_menu(myogrip_live_t *live, const mg_command_t *request)
+{
+  return request->code == '@' && request->boot == myogrip_boot &&
+      myogrip_live_load_menu(live, &request->menu, request->revision,
+                             request->preserve_selection);
+}
+
 static void
 adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   esp_err_t ret = ESP_OK;
@@ -401,6 +479,9 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   uint32_t emg_log_samples = 0;
   const char *previous_activity = NULL;
 
+  myogrip_live_t live;
+  myogrip_live_init(&live);
+
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   emg_signal_reset();
   emg_episode_reset();
@@ -411,11 +492,39 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
   while (1) {
 
     // Sleep until the ADC reports available data.
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (!recovery_pending) {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
 
-    char command;
-    while (xQueueReceive(emg_command_queue, &command, 0) == pdPASS) {
-      emg_calibration_command(command);
+    mg_command_t request;
+    while (xQueueReceive(emg_command_queue, &request, 0) == pdPASS) {
+      char command = request.code;
+      if (command == '@') {
+        bool accepted = !recovery_pending &&
+            get_adc_pool_overflows() == handled_overflows &&
+            myogrip_apply_menu(&live, &request);
+        ESP_LOGI("MYOGRIP_FSM",
+                 "MGACK {\"boot\":%lu,\"menu_id\":%lu,"
+                 "\"accepted\":%u,\"revision\":%lu}",
+                 (unsigned long)myogrip_boot,
+                 (unsigned long)request.menu.menu_id,
+                 (unsigned)accepted, (unsigned long)live.revision);
+        /* Acknowledge the exact state before processing the next ADC frame. */
+        myogrip_publish(&live);
+      } else if (command == 'm') {
+        ESP_LOGI("MYOGRIP_FSM", "DEMO MENU: %s",
+                 myogrip_live_demo_menu(&live) ? "loaded" :
+                 "ignored; validate calibration, rest, and return HOME first");
+      } else {
+        emg_calibration_command(command);
+        emg_thresholds_t current_thresholds;
+        if (!emg_calibration_get_thresholds(&current_thresholds)) {
+          myogrip_live_gap(&live);
+          emg_activity_reset();
+          emg_episode_reset();
+          emg_gesture_reset();
+        }
+      }
     }
 
 
@@ -428,6 +537,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         emg_activity_reset();
         emg_episode_reset();
         emg_gesture_reset();
+        myogrip_live_gap(&live);
         previous_activity = NULL;
         emg_log_samples = 0;
 
@@ -454,7 +564,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 
       if (get_adc_pool_overflows() != handled_overflows) {
         recovery_pending = true;
-        continue;
+        break;
       }
 
       if (ret == ESP_ERR_TIMEOUT) {
@@ -496,7 +606,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         if (!channel_order_valid) {
           ESP_LOGE("MYOGRIP_ADC", "Unexpected ADC channel order");
           recovery_pending = true;
-          continue;
+          break;
         }
 
         // The complete frame is ready for the existing decoder.
@@ -564,6 +674,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
             emg_gesture_reset();
           }
 
+          myogrip_live_sample(&live, activity, gesture);
+
           if (gesture != EMG_GESTURE_NONE) {
             ESP_LOGI("MYOGRIP_EMG", "GESTURE %s",
                      emg_gesture_name(gesture));
@@ -602,10 +714,14 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         }
         battery_reading = battery_reading / PACKET_LEN;
         if (!battery_check(battery_reading)) {
+          myogrip_live_gap(&live);
+          myogrip_publish(&live);
           // ADC was intentionally stopped. End this task without recovery.
           vTaskDelete(NULL);
           return;
         }
+
+        myogrip_publish(&live);
 
         samples_per_channel += PACKET_LEN;
         frames_since_log++;
@@ -654,17 +770,23 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         gpio_set_level(DEBUG_PIN_1, 0);
 #endif
         recovery_pending = true;
-        continue;
+        break;
       }
 #ifdef DEBUG
       gpio_set_level(DEBUG_PIN_1, 0);
 #endif
+    }
+    if (recovery_pending) {
+      continue;  // Restart at the outer recovery block; do not re-read stale data.
     }
     vTaskDelay(pdMS_TO_TICKS(100)); // use pdMS_TO_TICKS for portable delay
   }
 }
 
 void app_main(void) {
+  do {
+    myogrip_boot = esp_random();
+  } while (myogrip_boot == 0);
   neopixel_init();
   set_pixel(0, RED, 10);
   /*
@@ -688,7 +810,7 @@ void app_main(void) {
                                .min_freq_mhz = 40,
 #ifndef DEBUG
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-                               .light_sleep_enable = true
+      .light_sleep_enable = false
 #endif
 #endif
   };
@@ -744,7 +866,9 @@ void app_main(void) {
 
   esp_log_level_set("MYOGRIP_CAL", ESP_LOG_INFO);
 
-  emg_command_queue = xQueueCreate(8, sizeof(char));
+  esp_log_level_set("MYOGRIP_FSM", ESP_LOG_INFO);
+
+  emg_command_queue = xQueueCreate(8, sizeof(mg_command_t));
   ESP_ERROR_CHECK(emg_command_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
 
   BaseType_t console_rc = xTaskCreate(

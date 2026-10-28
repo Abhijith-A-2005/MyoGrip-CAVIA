@@ -6,6 +6,8 @@ idf_component_register(
         "src/led_strip_encoder.c"
         "src/neopixel.c"
         "src/myogrip_fsm.c"
+        "src/myogrip_live.c"
+        "src/myogrip_wire.c"
         "src/myogrip_selftest.c"
         "src/emg_signal.c"
         "src/emg_calibration.c"
