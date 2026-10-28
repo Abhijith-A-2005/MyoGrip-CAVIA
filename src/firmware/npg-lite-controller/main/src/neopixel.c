@@ -98,7 +98,7 @@ void neopixel_init() {
 }
 
 void set_pixel(uint8_t pixel_num, color_t color, uint8_t brightness) {
-  if (pixel_num > NUM_NEOPIXEL - 1 || pixel_num < 0) {
+  if (pixel_num >= NUM_NEOPIXEL) {
     ESP_LOGE(TAG, "Pixel Num should be between 0 to 5 for NPG-LITE!");
     return;
   }
