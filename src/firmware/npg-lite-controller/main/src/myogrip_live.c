@@ -6,6 +6,7 @@
 void myogrip_live_gap(myogrip_live_t *live)
 {
     /* Reset is appropriate here only because this build has no motor output. */
+    live->revision++;
     mg_init(&live->fsm);
     live->calibrated = false;
     live->armed = false;
@@ -31,9 +32,10 @@ bool myogrip_live_menu_ready(const myogrip_live_t *live)
 }
 
 bool myogrip_live_load_menu(myogrip_live_t *live, const mg_menu_t *menu,
-                            bool preserve_selection)
+                            uint32_t expected_revision, bool preserve_selection)
 {
-    if (!myogrip_live_menu_ready(live) || menu == NULL) return false;
+    if (!myogrip_live_menu_ready(live) || menu == NULL ||
+        expected_revision != live->revision) return false;
 
     /* Validate separately so rejection cannot alter the current menu. */
     mg_fsm_t next;
@@ -57,6 +59,7 @@ bool myogrip_live_load_menu(myogrip_live_t *live, const mg_menu_t *menu,
     }
 
     live->fsm = next;
+    live->revision++;
     return true;
 }
 
@@ -69,6 +72,7 @@ bool myogrip_live_demo_menu(myogrip_live_t *live)
         return false;
     }
     mg_step(&live->fsm, MG_MENU_READY);
+    if (live->fsm.menu_loaded) live->revision++;
     return live->fsm.menu_loaded;
 }
 
@@ -112,6 +116,10 @@ void myogrip_live_sample(myogrip_live_t *live, const char *activity,
         live->gesture_seq++;
     }
 
+    mg_state_t state_before = live->fsm.state;
+    uint8_t selected_before = live->fsm.selected;
+    bool returning_before = live->fsm.returning;
+
     /* Ignore input throughout HE return, including its completion sample. */
     if (!live->fsm.returning) {
         switch (gesture) {
@@ -131,4 +139,11 @@ void myogrip_live_sample(myogrip_live_t *live, const char *activity,
 
     /* Advance by acquisition time, never by log rate or GUI frame rate. */
     mg_tick(&live->fsm, 1.0f / EMG_SAMPLE_RATE_HZ);
+
+    /* Reject proposals overtaken by navigation, confirmation or return. */
+    if (state_before != live->fsm.state ||
+        selected_before != live->fsm.selected ||
+        returning_before != live->fsm.returning) {
+        live->revision++;
+    }
 }
