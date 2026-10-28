@@ -2,19 +2,19 @@ import { useEffect, useState } from "react";
 import { objectLabel, regionLabel } from "../labels";
 import { isMock, videoUrl } from "../state/connect";
 import { useDashboard } from "../state/store";
-import type { Box, VisionState } from "../types/messages";
+import { frameFit, reticleGeometry } from "../state/targeting";
+import type { Box, Targeting, VisionState } from "../types/messages";
 import "./CameraPanel.css";
 
 // Overlay coordinates: a 4:3 viewBox matching the camera frame.
 const VW = 1000;
 const VH = 750;
-// The viewfinder is wider than the frame (16:9, see CameraPanel.css); the frame fills its width and is
-// centred, so a strip at the top and bottom is cut off. Corners are drawn on the viewfinder itself.
+// The wider 16:9 viewfinder contains the full source frame. Corners outline the panel.
 const CW = 1000;
 const CH = 562.5;
 // Labels sit above the object box and below the region box; keep both inside the visible band (% of frame height).
-const TAG_MIN_TOP = 19;
-const TAG_MAX_TOP = 81;
+const TAG_MIN_TOP = 5;
+const TAG_MAX_TOP = 95;
 
 const LOCK_TEXT: Record<VisionState, string> = {
   NO_OBJECT: "No object",
@@ -23,10 +23,10 @@ const LOCK_TEXT: Record<VisionState, string> = {
   LOST: "Lost, hold steady",
 };
 
-function toRect(b: Box) {
-  const x = b[0] * VW;
-  const y = b[1] * VH;
-  return { x, y, w: (b[2] - b[0]) * VW, h: (b[3] - b[1]) * VH };
+function toRect(b: Box, width: number, height: number) {
+  const x = b[0] * width;
+  const y = b[1] * height;
+  return { x, y, w: (b[2] - b[0]) * width, h: (b[3] - b[1]) * height };
 }
 
 /** Live wrist-camera feed with themed overlays drawn on top in SVG. */
@@ -47,12 +47,19 @@ export function CameraPanel({ focused }: { focused: boolean }) {
   const noCamera = camera?.status === "down";
   const state = vision?.state ?? "NO_OBJECT";
   const locked = state === "LOCKED";
+  const targeting = vision?.targeting;
+  const [vw, vh] = targeting?.frame_size ?? [VW, VH];
+  const stageText = targeting ? {
+    object: "Stage 1: object",
+    settling: "Object locked: settling",
+    region: "Stage 2: region",
+  }[targeting.stage] : null;
   const box = !paused && videoOk && vision?.box
-    ? toRect(vision.box)
+    ? toRect(vision.box, vw, vh)
     : null;
 
   const region = !paused && videoOk && vision?.region_box
-    ? toRect(vision.region_box)
+    ? toRect(vision.region_box, vw, vh)
     : null;
 
   // MJPEG streams end on network errors. Retry every 2 s (never in a tight loop) while the video
@@ -66,8 +73,8 @@ export function CameraPanel({ focused }: { focused: boolean }) {
 
   return (
     <section className="cam" data-area="camera" data-focused={focused || undefined} aria-label="Wrist camera">
-      {/* The 4:3 camera frame: picture, detection overlays and tags share its coordinates. */}
-      <div className="cam-frame">
+      {/* Fit the whole source frame so the large circle is never cropped or stretched. */}
+      <div className="cam-frame" style={frameFit(vw, vh)}>
         {!stale && !offline && (
           <img
             key={frameKey}
@@ -81,7 +88,7 @@ export function CameraPanel({ focused }: { focused: boolean }) {
         )}
         <div className="cam-vignette" />
 
-        <svg className="cam-overlay" viewBox={`0 0 ${VW} ${VH}`} aria-hidden>
+        <svg className="cam-overlay" viewBox={`0 0 ${vw} ${vh}`} aria-hidden>
           {box && !stale && !offline && (
             <g className="cam-object" data-locked={locked || undefined}>
               <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={14} />
@@ -93,12 +100,12 @@ export function CameraPanel({ focused }: { focused: boolean }) {
             </g>
           )}
           {!stale && !offline && !paused && videoOk && (
-            <Reticle locked={locked} />
+            <Reticle targeting={targeting} width={vw} height={vh} />
           )}
         </svg>
 
         {box && vision?.object && !stale && !offline && (
-          <span className="cam-tag cam-tag-object" style={{ left: `${(box.x / VW) * 100}%`, top: `${Math.max(TAG_MIN_TOP, (box.y / VH) * 100)}%` }}>
+          <span className="cam-tag cam-tag-object" style={{ left: `${(box.x / vw) * 100}%`, top: `${Math.max(TAG_MIN_TOP, (box.y / vh) * 100)}%` }}>
             {objectLabel(vision.object)} <span className="num">{Math.round(vision.det_conf * 100)}%</span>
           </span>
         )}
@@ -107,8 +114,8 @@ export function CameraPanel({ focused }: { focused: boolean }) {
             className="cam-tag cam-tag-region"
             data-locked={locked || undefined}
             style={{
-              left: `${((region.x + region.w) / VW) * 100}%`,
-              top: `${Math.min(TAG_MAX_TOP, ((region.y + region.h) / VH) * 100)}%`,
+              left: `${((region.x + region.w) / vw) * 100}%`,
+              top: `${Math.min(TAG_MAX_TOP, ((region.y + region.h) / vh) * 100)}%`,
             }}
           >
             {regionLabel(vision.region)}
@@ -124,7 +131,7 @@ export function CameraPanel({ focused }: { focused: boolean }) {
       <div className="cam-hud cam-hud-top">
         <span className="cam-lock" data-state={state}>
           <span className="cam-lock-dot" />
-          {paused ? "Detection paused until HOME" : LOCK_TEXT[state]}
+          {paused ? "Detection paused until HOME" : `${stageText ? `${stageText} · ` : ""}${LOCK_TEXT[state]}`}
         </span>
         {camera && !stale && !offline && (
           <span className="cam-stats num">
@@ -165,19 +172,16 @@ function FrameCorners() {
   );
 }
 
-/** Fixed centre reticle. The brackets close in when the region locks. */
-function Reticle({ locked }: { locked: boolean }) {
-  const cx = VW / 2;
-  const cy = VH / 2;
-  const r = 44;
-  const l = 16;
+/** Pixel geometry comes from the same frame used for object/region hit-testing. */
+function Reticle({ targeting, width, height }: {
+  targeting?: Targeting | null; width: number; height: number;
+}) {
+  const { cx, cy, radius, path, stage } = reticleGeometry(targeting, width, height);
   return (
-    <g className="cam-reticle" data-locked={locked || undefined}>
-      <path d={`M${cx - r} ${cy - r + l}V${cy - r}H${cx - r + l}`} />
-      <path d={`M${cx + r - l} ${cy - r}H${cx + r}V${cy - r + l}`} />
-      <path d={`M${cx + r} ${cy + r - l}V${cy + r}H${cx + r - l}`} />
-      <path d={`M${cx - r + l} ${cy + r}H${cx - r}V${cy + r - l}`} />
-      <circle cx={cx} cy={cy} r={3.5} />
+    <g className="cam-reticle" data-stage={stage}>
+      {radius !== null ? <circle cx={cx} cy={cy} r={radius} /> : (
+        <path d={path} />
+      )}
     </g>
   );
 }
