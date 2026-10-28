@@ -21,6 +21,8 @@
 #include "myogrip_selftest.h"
 #include "myogrip_live.h"
 #include "myogrip_wire.h"
+#include "myogrip_keyboard.h"
+#include "esp_timer.h"
 #include "esp_random.h"
 #include "common.h"
 #include "driver/gpio.h"
@@ -83,7 +85,7 @@ static void emg_console_task(void *arg)
 
   setvbuf(stdin, NULL, _IONBF, 0);
 
-  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h v x ? | m=demo menu | @=menu packet");
+  ESP_LOGI("MYOGRIP_CONSOLE", "Input ready: r f e h v x ? | m=demo menu | @=menu packet | K=keyboard packet");
 
   char line[192];
   unsigned used = 0;
@@ -103,12 +105,16 @@ static void emg_console_task(void *arg)
       if (input == '\r' || input == '\n') {
         mg_command_t request;
         line[used] = '\0';
-        if (!overflow && mg_parse_menu_line(line, &request)) {
+        bool parsed = !overflow && (line[0] == '@'
+            ? mg_parse_menu_line(line, &request)
+            : mg_parse_keyboard_line(line, &request));
+        if (parsed) {
           if (xQueueSend(emg_command_queue, &request, 0) != pdPASS) {
-            ESP_LOGW("MYOGRIP_CONSOLE", "Menu queue full; packet dropped");
+            ESP_LOGW("MYOGRIP_CONSOLE", "Command queue full; packet dropped");
           }
         } else {
-          ESP_LOGW("MYOGRIP_CONSOLE", "Malformed menu packet rejected");
+          ESP_LOGW("MYOGRIP_CONSOLE", "Malformed %s packet rejected",
+                   line[0] == '@' ? "menu" : "keyboard");
         }
         collecting = false;
       } else if (input == 0 || used >= sizeof(line) - 1) {
@@ -120,11 +126,11 @@ static void emg_console_task(void *arg)
       continue;
     }
 
-    if (input == '@') {
+    if (input == '@' || input == 'K') {
       collecting = true;
       overflow = false;
       used = 1;
-      line[0] = '@';
+      line[0] = (char)input;
       continue;
     }
 
@@ -420,11 +426,14 @@ static const char *emg_activity_update(
 }
 
 /* One snapshot per ADC frame (about 10 Hz), not one log per sample. */
-static void myogrip_publish(const myogrip_live_t *live)
+static void myogrip_publish(const myogrip_live_t *live, mg_keyboard_t *keys)
 {
   const mg_fsm_t *f = &live->fsm;
+  mg_keyboard_expire(keys, (uint64_t)(esp_timer_get_time() / 1000));
   ESP_LOGI("MYOGRIP_FSM",
            "MGSTATE {\"v\":1,\"wire\":2,\"boot\":%lu,\"revision\":%lu,"
+           "\"keyboard_wire\":1,\"keyboard_session\":%lu,\"keyboard_sequence\":%lu,"
+           "\"keyboard_mask\":%u,\"keyboard_connected\":%u,"
            "\"rest\":%u,\"menu_ready\":%u,\"samples\":%lu,\"calibrated\":%u,"
            "\"armed\":%u,\"activity\":\"%s\",\"gesture\":\"%s\","
            "\"gesture_seq\":%lu,\"state\":\"%s\",\"menu_id\":%lu,"
@@ -433,6 +442,8 @@ static void myogrip_publish(const myogrip_live_t *live)
            "\"adaptive_count\":%u,\"adaptive\":[%d,%d,%d,%d],"
            "\"full_count\":%u,\"full\":[%d,%d,%d,%d]}",
            (unsigned long)myogrip_boot, (unsigned long)live->revision,
+           (unsigned long)keys->session, (unsigned long)keys->sequence,
+           (unsigned)keys->mask, (unsigned)keys->connected,
            live->rest_samples, (unsigned)myogrip_live_menu_ready(live),
            (unsigned long)live->samples, (unsigned)live->calibrated,
            (unsigned)live->armed, live->activity,
@@ -481,6 +492,8 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
 
   myogrip_live_t live;
   myogrip_live_init(&live);
+  mg_keyboard_t keyboard;
+  mg_keyboard_init(&keyboard);
 
   adc_conv_task_handle = xTaskGetCurrentTaskHandle();
   emg_signal_reset();
@@ -499,7 +512,18 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
     mg_command_t request;
     while (xQueueReceive(emg_command_queue, &request, 0) == pdPASS) {
       char command = request.code;
-      if (command == '@') {
+      if (command == 'K') {
+        bool accepted = request.boot == myogrip_boot &&
+            mg_keyboard_receive(&keyboard, request.session, request.sequence,
+                                request.key_mask,
+                                (uint64_t)(esp_timer_get_time() / 1000));
+        ESP_LOGI("MYOGRIP_FSM",
+                 "MGKEYACK {\"boot\":%lu,\"session\":%lu,"
+                 "\"sequence\":%lu,\"accepted\":%u}",
+                 (unsigned long)myogrip_boot, (unsigned long)request.session,
+                 (unsigned long)request.sequence, (unsigned)accepted);
+        myogrip_publish(&live, &keyboard);
+      } else if (command == '@') {
         bool accepted = !recovery_pending &&
             get_adc_pool_overflows() == handled_overflows &&
             myogrip_apply_menu(&live, &request);
@@ -510,7 +534,7 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
                  (unsigned long)request.menu.menu_id,
                  (unsigned)accepted, (unsigned long)live.revision);
         /* Acknowledge the exact state before processing the next ADC frame. */
-        myogrip_publish(&live);
+        myogrip_publish(&live, &keyboard);
       } else if (command == 'm') {
         ESP_LOGI("MYOGRIP_FSM", "DEMO MENU: %s",
                  myogrip_live_demo_menu(&live) ? "loaded" :
@@ -715,13 +739,13 @@ adc_conv_task(void *arg) { // changed signature to proper FreeRTOS prototype
         battery_reading = battery_reading / PACKET_LEN;
         if (!battery_check(battery_reading)) {
           myogrip_live_gap(&live);
-          myogrip_publish(&live);
+          myogrip_publish(&live, &keyboard);
           // ADC was intentionally stopped. End this task without recovery.
           vTaskDelete(NULL);
           return;
         }
 
-        myogrip_publish(&live);
+        myogrip_publish(&live, &keyboard);
 
         samples_per_channel += PACKET_LEN;
         frames_since_log++;

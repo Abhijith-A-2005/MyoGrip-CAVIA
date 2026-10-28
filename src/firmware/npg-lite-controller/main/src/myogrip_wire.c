@@ -3,6 +3,41 @@
 #include <stdint.h>
 #include <string.h>
 
+static bool read_word(const char **cursor, uint32_t *out)
+{
+    const char *p = *cursor;
+    if (*p != ' ') return false;
+    while (*p == ' ') p++;
+    if (*p < '0' || *p > '9') return false;
+    uint32_t value = 0;
+    do {
+        unsigned digit = (unsigned)(*p++ - '0');
+        if (value > (UINT32_MAX - digit) / 10) return false;
+        value = value * 10 + digit;
+    } while (*p >= '0' && *p <= '9');
+    *out = value;
+    *cursor = p;
+    return true;
+}
+
+/* K boot session sequence held_mask. A new session must begin with mask 0. */
+bool mg_parse_keyboard_line(const char *line, mg_command_t *out)
+{
+    if (line == NULL || out == NULL || *line++ != 'K') return false;
+    uint32_t words[4];
+    for (unsigned i = 0; i < 4; i++)
+        if (!read_word(&line, &words[i])) return false;
+    if (*line || !words[1] || !words[2] || words[3] > 31) return false;
+    mg_command_t command = {0};
+    command.code = 'K';
+    command.boot = words[0];
+    command.session = words[1];
+    command.sequence = words[2];
+    command.key_mask = (uint8_t)words[3];
+    *out = command;
+    return true;
+}
+
 /* @ boot revision menu_id flags adaptive_count a0 a1 a2 a3 full_count f0 f1 f2 f3 */
 bool mg_parse_menu_line(const char *line, mg_command_t *out)
 {

@@ -8,6 +8,7 @@ idf_component_register(
         "src/myogrip_fsm.c"
         "src/myogrip_live.c"
         "src/myogrip_wire.c"
+        "src/myogrip_keyboard.c"
         "src/myogrip_selftest.c"
         "src/emg_signal.c"
         "src/emg_calibration.c"
@@ -20,6 +21,7 @@ idf_component_register(
         esp_driver_gpio
         esp_adc
         esp_pm
+        esp_timer
         esp_driver_rmt
 
     INCLUDE_DIRS
