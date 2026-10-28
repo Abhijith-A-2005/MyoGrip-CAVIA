@@ -102,6 +102,35 @@ def test_open_publishes_initial_state(rt):
     assert "session_started" in log_types(rt)
 
 
+def test_two_stage_results_drive_object_then_region_menus(rt):
+    from types import SimpleNamespace
+    from cavia.server.live_vision import TwoStagePipeline
+
+    pipeline = TwoStagePipeline()
+    rectangle = [(200, 100, 440, 400)]
+
+    def latest():
+        detection = SimpleNamespace(cls=[0], conf=[0.95], xyxy=[rectangle[0]])
+        now = rt.test["clock"]()
+        return dict(pipeline.process([detection], {0: "cup"}, (480, 640, 3), now), ts=now)
+
+    rt.test["vision"].latest = latest
+    step(rt, n=6)
+    hub = rt.test["hub"]
+    assert hub.last("menu")["context"]["region"] == "unknown"
+    assert hub.last("vision")["targeting"]["stage"] == "settling"
+    rectangle[0] = (100, 80, 340, 400)
+    step(rt, n=55)
+    assert hub.last("menu")["context"]["region"] == "handle"
+    rectangle[0] = (200, 100, 440, 400)
+    step(rt, n=15)
+    assert hub.last("menu")["context"]["region"] == "body"
+    rt.key("a", True)
+    step(rt, n=10)
+    assert rt.test["paused"] == [True]
+    assert rt.app.frozen
+
+
 def test_vision_lock_produces_menu_and_adaptive_state(rt):
     lock(rt)
     hub = rt.test["hub"]

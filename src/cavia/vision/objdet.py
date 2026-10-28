@@ -16,6 +16,7 @@ from detection import (
     circle_radius,
     box_center_in_circle,
     STAGE2_DELAY_S,
+    CROSS_HALF_SIZE,
 )
 from cavia.runtime.vision_link import DetectionControl, frame_wanted, publish_frame, publish_result
 
@@ -102,7 +103,7 @@ def draw_cross_reticle(frame):
     """Stage 2 reticle: the small red cross used for region targeting."""
     h, w = frame.shape[:2]
     cx, cy = w // 2, h // 2
-    size = 20
+    size = CROSS_HALF_SIZE
     color = (0, 0, 255)
 
     cv2.line(frame, (cx - size, cy), (cx + size, cy), color, 2)

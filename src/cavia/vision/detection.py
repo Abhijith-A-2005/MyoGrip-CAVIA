@@ -22,6 +22,7 @@ REGION_DISPLAY_CONF_THRESHOLD = 0.5
 
 CIRCLE_AREA_FRAC = 0.5      # stage-1 circle covers about half the frame area
 STAGE2_DELAY_S = 2.0        # seconds the circle stays after the object locks, before the cross appears
+CROSS_HALF_SIZE = 20       # cross extends this many source pixels in each direction
 
 
 def clamp_box(box, frame_shape):
