@@ -69,11 +69,18 @@ class DashboardRuntime:
         self._last_progress: float | None = None
         self._activity = Activity.REST
         self._users_dirty = False
+        self._browser_keys_at = clock()
 
     # ---- any thread ---------------------------------------------------------
 
     def key(self, key: str, down: bool) -> None:
         self._inbox.put(("key", key, down))
+
+    def keyboard_state(self, keys) -> None:
+        self._inbox.put(("key_state", tuple(keys)))
+
+    def release_keys(self) -> None:
+        self.keyboard_state(())
 
     def control(self, data: dict) -> None:
         self._inbox.put(("control", data))
@@ -149,12 +156,21 @@ class DashboardRuntime:
             except queue.Empty:
                 break
             if item[0] == "key":
+                self._browser_keys_at = self.clock()
                 self._apply_key(item[1], item[2])
+            elif item[0] == "key_state":
+                self._browser_keys_at = self.clock()
+                for key in tuple(app.keys.held):
+                    if key not in item[1]:
+                        self._apply_key(key, False)
             else:
                 self._apply_control(item[1])
 
         if self._users_dirty:
             self._publish_users()
+        if self.clock() - self._browser_keys_at > 0.35:
+            for key in tuple(app.keys.held):
+                self._apply_key(key, False)
         if self.feed is not None:
             self.feed.poll()                  # publishes vision, then hands results to app.receive
             app.check_source(exited=self.feed.source.exited)

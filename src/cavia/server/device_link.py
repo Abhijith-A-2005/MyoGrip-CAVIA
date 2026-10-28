@@ -164,6 +164,7 @@ class DeviceLink:
         self.connected = False
         self.error = "Waiting for shared-input firmware"
         self.calibration = ""
+        self.calibration_log = deque(maxlen=6)
         self.discarded_frames = 0
         self.bytes_received = 0
         self.lines_received = 0
@@ -187,6 +188,7 @@ class DeviceLink:
                     "detail": "USB firmware FSM" if fresh else self.error,
                     "battery_pct": None, "calibrated": fresh and bool(data.get("calibrated")),
                     "armed": fresh and bool(data.get("armed")), "calibration": self.calibration,
+                    "calibration_log": list(self.calibration_log),
                     "discarded_frames": self.discarded_frames, "connections": self.connections,
                     "bytes_received": self.bytes_received, "lines_received": self.lines_received}
 
@@ -252,6 +254,8 @@ class DeviceLink:
                 self.packets.clear()
                 self._clear_commands()
                 self.advanced = None
+                self.calibration = ""
+                self.calibration_log.clear()
                 previous = None
             if previous is not None:
                 delta = (data["samples"] - previous["samples"]) & UINT32_MAX
@@ -312,6 +316,7 @@ class DeviceLink:
                         self.packets.clear()
                         self.error = "Waiting for shared-input firmware"
                         self.calibration = ""
+                        self.calibration_log.clear()
                     pending = bytearray()
                     while not self.stop_event.is_set():
                         self._write_next(device)
@@ -337,6 +342,7 @@ class DeviceLink:
                             elif "MYOGRIP_CAL:" in line:
                                 with self.lock:
                                     self.calibration = line.split("MYOGRIP_CAL:", 1)[1].strip()[:180]
+                                    self.calibration_log.append(self.calibration)
                         if len(pending) > 16384:
                             raise ValueError("Oversized serial line")
             except Exception as exc:

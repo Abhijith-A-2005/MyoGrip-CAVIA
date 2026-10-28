@@ -69,7 +69,7 @@ export type FsmMsg = {
 
 export type EmgMsg = {
   ts: number;
-  source: "device" | "keyboard" | "replay";
+  source: "device" | "keyboard" | "replay" | "both";
   event?: EmgEvent;
   activity?: Activity;
 };
@@ -78,7 +78,11 @@ export type SystemMsg = {
   /** latency_ms 0 = not measured (hidden in the UI). */
   camera: { status: HealthStatus; source: "XIAO" | "LAPTOP"; fps: number; latency_ms: number };
   vision: { status: HealthStatus; model: string };
-  hand_link: { status: HealthStatus; battery_pct: number | null };
+  hand_link: { status: HealthStatus; battery_pct: number | null; detail?: string;
+    calibrated?: boolean; armed?: boolean; calibration?: string; calibration_log?: string[] };
+  controller?: "firmware" | "keyboard";
+  keyboard_ready?: boolean;
+  calibration_mode?: boolean;
   emg_source: "device" | "keyboard" | "replay";
 };
 
@@ -166,6 +170,8 @@ export type ServerMessage =
 export type GestureKey = "w" | "a" | "s" | "d" | "e";
 
 export type ControlAction =
+  | { action: "device_setup"; enabled: boolean }
+  | { action: "device_command"; command: "r" | "f" | "e" | "h" | "v" | "x" | "?" }
   | { action: "start_trial"; task_id: string | null; practice: boolean }
   | { action: "end_trial"; grasp_success: boolean; notes: string }
   | { action: "start_rest" }
@@ -175,4 +181,5 @@ export type ControlAction =
 
 export type ClientMessage =
   | { type: "key"; data: { key: GestureKey; down: boolean } }
+  | { type: "key_state"; data: { keys: GestureKey[] } }
   | { type: "control"; data: ControlAction };

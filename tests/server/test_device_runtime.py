@@ -311,6 +311,9 @@ def test_old_or_unstable_vision_does_not_replace_a_menu(rt):
 
 def test_calibration_controls_are_whitelisted_and_require_home(rt):
     ready(rt)
+    rt.control({"action": "device_setup", "enabled": True})
+    rt.tick(0)
+    assert "x\n" in rt.test.board.sent
     rt.control({"action": "device_command", "command": "r"})
     rt.tick(0)
     assert "r\n" in rt.test.board.sent
@@ -319,10 +322,15 @@ def test_calibration_controls_are_whitelisted_and_require_home(rt):
     rt.tick(0)
     assert len(rt.test.board.sent) == before
     lock(rt)
+    assert rt.test.board.menus == []  # Vision cannot leave HOME during calibration.
+    rt.control({"action": "device_setup", "enabled": False})
+    rt.tick(0)
+    lock(rt)
     acknowledge(rt)
+    before = len(rt.test.board.sent)
     rt.control({"action": "device_command", "command": "x"})
     rt.tick(0)
-    assert "x\n" not in rt.test.board.sent
+    assert len(rt.test.board.sent) == before
 
 
 @pytest.mark.parametrize("timeout", [0, -1, float("nan")])
@@ -345,3 +353,86 @@ def test_keyboard_navigation_after_completed_emg_return_keeps_previous_preferenc
     rt.tick(0)
     assert rt.store.get_selection(interaction)["status"] == "accepted"
     assert sum(rt.store.counts("P01", "cup").values()) == 1
+
+
+def test_calibration_setup_from_menu_waits_for_home_and_fresh_vision(rt):
+    prepare_menu(rt)
+    rt.control({"action": "device_setup", "enabled": True})
+    rt.tick(0)
+    assert rt.calibration_mode and "x\n" in rt.test.board.sent
+    before = len(rt.test.board.sent)
+    rt.control({"action": "device_command", "command": "r"})
+    rt.tick(0)
+    assert len(rt.test.board.sent) == before
+    rt.test.board.emit(**{k: v for k, v in home(calibrated=0, armed=0).items()
+                         if k not in {"samples", "keyboard_session", "keyboard_sequence"}})
+    rt.tick(0)
+    lock(rt)
+    count = len(rt.test.board.menus)
+    assert rt.calibration_mode
+    rt.control({"action": "device_setup", "enabled": False})
+    rt.tick(0)
+    assert not rt.calibration_mode and len(rt.test.board.menus) == count
+    ready(rt)
+    lock(rt)
+    assert len(rt.test.board.menus) > count
+
+
+def test_calibration_reset_is_rejected_during_actuation_and_when_stale(rt):
+    prepare_menu(rt)
+    confirm(rt)
+    rt.control({"action": "device_setup", "enabled": True})
+    rt.tick(0)
+    assert not rt.calibration_mode and "x\n" not in rt.test.board.sent
+    rt.test.board.fresh = False
+    rt.control({"action": "device_setup", "enabled": True})
+    rt.tick(0)
+    assert not rt.calibration_mode
+
+
+def test_calibration_setup_needs_explicit_boolean_and_released_keys(rt):
+    ready(rt)
+    rt.control({"action": "device_setup", "enabled": "yes"})
+    rt.tick(0)
+    assert not rt.calibration_mode
+    rt.key("a", True)
+    rt.control({"action": "device_setup", "enabled": True})
+    rt.tick(0)
+    assert not rt.calibration_mode and "x\n" not in rt.test.board.sent
+
+
+def test_board_mode_keeps_profiles_and_reports_rejected_controls(rt):
+    ready(rt)
+    assert rt.test.hub.latest("users")["users"][0]["user"] == "P01"
+    rt.control({"action": "add_user", "user": " p07 "})
+    rt.tick(0)
+    assert [user["user"] for user in rt.test.hub.latest("users")["users"]] == ["P01", "P07"]
+    rt.control({"action": "add_user", "user": "P07"})
+    rt.tick(0)
+    # Hub treats notices as transient events; audit proves the rejection.
+    assert "already exists" in rt.test.audit.getvalue()
+    rt.control({"action": "set_session", "participant": "P07", "condition": "C3_ADAPTIVE"})
+    rt.tick(0)
+    assert rt.session.state.participant == rt.test.hub.latest("users")["current"] == "P07"
+
+
+def test_board_mode_keeps_rest_controls_and_audit_context(rt):
+    rt.session._audit = lambda event, **data: rt.audit(event, **data)
+    rt.control({"action": "start_rest"})
+    rt.tick(0)
+    assert rt.test.hub.latest("session")["rest_active"]
+    rt.audit("observed", source="device")
+    records = [json.loads(line) for line in rt.test.audit.getvalue().splitlines()]
+    assert records[-1]["rest"] == 1
+    rt.control({"action": "end_rest"})
+    rt.tick(0)
+    assert not rt.test.hub.latest("session")["rest_active"]
+
+
+def test_board_mode_refreshes_user_counts_after_real_emg_learning(rt):
+    prepare_menu(rt)
+    confirm(rt)
+    rt.test.board.emit(samples=rt.snapshot["samples"] + 500, progress=0.3)
+    rt.tick(0)
+    profile = rt.test.hub.latest("users")["users"][0]
+    assert profile["selections"] == 1 and profile["accepted"] == 1

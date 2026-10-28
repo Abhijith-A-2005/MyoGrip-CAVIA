@@ -295,3 +295,21 @@ def test_windows_port_reapplies_released_control_lines_after_open(monkeypatch):
         assert "MGSTATE " in link.last_serial_line
     finally:
         link.close()
+
+
+def test_calibration_log_keeps_done_before_channel_summaries_and_clears_on_boot():
+    lines = [b"I (1) MYOGRIP_CAL: REST DONE: 200 observations\n"] + [
+        f"I (1) MYOGRIP_CAL: CH{i} median=1 p95=2\n".encode() for i in range(1, 4)]
+    device = FakeSerial([frame().encode(), *lines, frame(samples=25).encode()], hold_idle=True)
+    link = DeviceLink("test", serial_factory=lambda **kwargs: device)
+    link.start()
+    try:
+        assert device.waiting.wait(2)
+        history = link.status()["calibration_log"]
+        assert len(history) == 4 and history[0].startswith("REST DONE")
+        assert history[-1] == "CH3 median=1 p95=2"
+        link._accept(snapshot(boot=8))
+        assert link.status()["calibration_log"] == []
+    finally:
+        device.release_idle.set()
+        link.close()

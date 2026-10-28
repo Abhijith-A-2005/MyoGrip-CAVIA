@@ -44,12 +44,20 @@ function Rail({ state }: { state: FsmState }) {
 
 export function HandPanel({ focused }: { focused: boolean }) {
   const fsm = useDashboard((s) => s.fsm);
+  const system = useDashboard((s) => s.system);
+  const link = useDashboard((s) => s.link);
+  const firmware = system?.controller === "firmware";
+  const stale = firmware && (system.hand_link.status !== "connected" || link !== "open");
   const state = fsm?.state ?? "HOME";
   const progress = fsm?.grip_progress ?? 0;
   const pct = Math.round(progress * 100);
   const grip = fsm?.active_grip ?? null;
   const moving = MOVE_STATES.includes(state);
-  const say = instruction(fsm);
+  const say = stale
+    ? { text: "Firmware data unavailable. Showing the last reported state.", tone: "warn" as const }
+    : system?.calibration_mode
+      ? { text: "Calibration mode. Open experimenter controls to capture EMG.", tone: "notice" as const }
+      : instruction(fsm);
 
   return (
     <section
@@ -60,7 +68,7 @@ export function HandPanel({ focused }: { focused: boolean }) {
       data-moving={moving || undefined}
       aria-label="Hand"
     >
-      <p className="hand-caption">Hand</p>
+      <p className="hand-caption">{firmware ? "Firmware FSM · EMG + keyboard" : "Keyboard simulation"}</p>
 
       <div className="hand-main">
         <div className="hand-column" aria-label={`Grip progress ${pct}%`}>
@@ -88,7 +96,7 @@ export function HandPanel({ focused }: { focused: boolean }) {
                 <span>
                   <span className="hand-grip-name">{GRIP_LABEL[grip]}</span>
                   <span className="hand-grip-from">
-                    from the {fsm?.menu_kind === "FULL" ? "full" : "adaptive"} menu
+                    {fsm?.menu_kind ? `from the ${fsm.menu_kind === "FULL" ? "full" : "adaptive"} menu` : "reported by the controller"}
                   </span>
                 </span>
               </>

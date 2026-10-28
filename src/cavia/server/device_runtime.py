@@ -15,6 +15,7 @@ from cavia.arbitration.engine import ArbitrationEngine
 from cavia.arbitration.preferences import PreferenceStore
 from cavia.core.contracts import Condition
 from .device_link import GRIPS, keyboard_line, menu_line, next_keyboard_session
+from .session import participant_id
 
 log = logging.getLogger(__name__)
 MENU_STATES = {"HOME", "ADAPTIVE", "FULL"}
@@ -42,6 +43,7 @@ class DeviceDashboardRuntime:
         self.vision = None
         self.resume_after = clock()
         self.frozen = False
+        self.calibration_mode = False
         self.keyboard_session = None
         self.keyboard_sequence = self.keyboard_mask = 0
         self.browser_keys_at = clock()
@@ -51,6 +53,7 @@ class DeviceDashboardRuntime:
         self._menu_kind = None
         self._generation = None
         self._was_fresh = False
+        self._users_dirty = False
         self._activity = None
         self._menu = object()
         self._inbox = queue.SimpleQueue()
@@ -60,12 +63,15 @@ class DeviceDashboardRuntime:
         self.log_name = Path(getattr(log_file, "name", self.epoch)).stem
 
     def audit(self, event_type, **data):
+        if event_type == "preference_update":
+            self._users_dirty = True
         if self.log_file is not None:
             state = self.session.state
             self.log_file.write(json.dumps({
                 "wall": time.time(), "ts": self.clock(), "type": event_type,
                 "session": self.log_name, "user": state.participant, "condition": state.condition,
-                "trial": state.trial if state.trial_active else None, "data": data,
+                "trial": state.trial if state.trial_active else None,
+                "rest": state.rest if state.rest_active else None, "data": data,
             }, default=str) + "\n")
 
     def key(self, key, down):
@@ -89,6 +95,8 @@ class DeviceDashboardRuntime:
     def open(self):
         self.store = PreferenceStore(self.db)
         self.engine = ArbitrationEngine(self.store)
+        self.store.add_user(self.session.state.participant)
+        self._publish_users()
         self.hub.publish("menu", None)
         self.audit("session_started", source="device", database=str(self.db))
 
@@ -154,7 +162,13 @@ class DeviceDashboardRuntime:
         if self.feed is not None:
             self.feed.poll()
         self._offer_menu()
+        if self._users_dirty:
+            self._publish_users()
         self._was_fresh = fresh
+
+    def _publish_users(self):
+        self._users_dirty = False
+        self.hub.publish("users", {"current": self.session.state.participant, "users": self.store.users()})
 
     def _reset_context(self):
         self._cancel_selection("connection changed")
@@ -365,7 +379,7 @@ class DeviceDashboardRuntime:
 
     def _offer_menu(self):
         packet, vision = self.snapshot, self.vision
-        if (packet is None or vision is None or self.frozen or not self.keyboard_ready()
+        if (packet is None or vision is None or self.frozen or self.calibration_mode or not self.keyboard_ready()
                 or not packet["menu_ready"] or packet["state"] not in MENU_STATES
                 or self.clock() - vision["ts"] > self.result_timeout
                 or vision.get("state") != "LOCKED" or vision.get("stable") is not True):
@@ -428,25 +442,56 @@ class DeviceDashboardRuntime:
                     self._send_keyboard(force=True)
             elif kind == "control":
                 action = data.get("action")
-                if action == "device_command":
+                if action == "device_setup":
+                    enabled = data.get("enabled")
+                    if type(enabled) is not bool:
+                        raise ValueError("Calibration mode must be a boolean")
+                    if (self.snapshot is None or self.device.status()["status"] != "connected"
+                            or self.snapshot["state"] not in MENU_STATES or self.keyboard_mask):
+                        raise ValueError("Start calibration at Home or a menu with keys released")
+                    if enabled:
+                        # x cancels any capture and resets the firmware to uncalibrated HOME.
+                        # A calibration reset is explicit, never part of ordinary startup.
+                        self.device.send("x\n")
+                    elif self.snapshot["state"] != "HOME":
+                        raise ValueError("Resume after firmware returns HOME")
+                    self.calibration_mode = enabled
+                    self.pending = self.current_key = self.current_menu_id = self.vision = None
+                    self.resume_after = self.clock()
+                    self.audit("calibration_mode", enabled=enabled)
+                elif action == "device_command":
                     command = data.get("command")
                     if command not in {"r", "f", "e", "h", "v", "x", "?"}:
                         raise ValueError("Unknown calibration command")
-                    if self.snapshot is None or self.snapshot["state"] != "HOME" or self.keyboard_mask:
+                    if (not self.calibration_mode or self.snapshot is None
+                            or self.snapshot["state"] != "HOME" or self.keyboard_mask):
                         raise ValueError("Calibrate at firmware HOME with keys released")
                     self.device.send(command + "\n")
                 elif action == "set_session":
-                    if (not self.keyboard_ready() or self.snapshot["state"] != "HOME"
-                            or not self.snapshot["menu_ready"] or self.keyboard_mask):
-                        raise ValueError("Change participant at fresh firmware HOME while resting")
+                    if (not self.keyboard_ready() or self.snapshot["state"] not in MENU_STATES
+                            or self.frozen or not self.snapshot["menu_ready"] or self.keyboard_mask):
+                        raise ValueError("Change participant before confirming a grip, while resting with keys released")
                     if data.get("condition") != Condition.C3_ADAPTIVE.value:
                         raise ValueError("Live arbitration currently supports C3 only")
+                    participant_id(data.get("participant"))
                     self.session.control(data)
                     self._reset_context()
+                    self.store.add_user(self.session.state.participant)
+                    self._publish_users()
+                elif action == "add_user":
+                    user = participant_id(data.get("user"))
+                    if any(profile["user"] == user for profile in self.store.users()):
+                        raise ValueError(f"User {user} already exists")
+                    self.store.add_user(user)
+                    self.audit("user_added", user=user)
+                    self._publish_users()
                 else:
                     self.session.control(data)
         except ValueError as exc:
-            self.audit("control_rejected", reason=str(exc))
+            self.audit("control_rejected", action=data.get("action") if kind == "control" else kind,
+                       reason=str(exc))
+            if kind == "control":
+                self.hub.publish("notice", {"action": data.get("action"), "ok": False, "message": str(exc)})
             log.info("Rejected dashboard control: %s", exc)
 
 

@@ -14,6 +14,8 @@ from cavia.core.contracts import Condition
 
 from .app import create_app
 from .history import read_history
+from .device_link import DeviceLink
+from .device_runtime import DeviceDashboardRuntime
 from .hub import Hub
 from .live_runtime import DashboardRuntime
 from .session import Session
@@ -72,6 +74,16 @@ def system_status(feed, frames=None):
     return system
 
 
+def runtime_system(status, runtime, device=None):
+    """Describe the active controller without claiming stale firmware is live."""
+    if device is None:
+        return {**status, "hand_link": {"status": "disconnected", "battery_pct": None},
+                "controller": "keyboard", "emg_source": "keyboard"}
+    return {**status, "hand_link": device.status(), "controller": "firmware",
+            "emg_source": "device", "keyboard_ready": bool(runtime.keyboard_ready()),
+            "calibration_mode": runtime.calibration_mode}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
 
@@ -91,6 +103,8 @@ def main(argv=None):
         default="live",
     )
 
+    parser.add_argument("--device-port", help="Firmware serial port, e.g. COM14; omit for keyboard simulation")
+    parser.add_argument("--device-baud", type=int, default=115200)
     parser.add_argument("--replay", type=Path)
     parser.add_argument("--record-vision", type=Path)
     parser.add_argument("--dist", type=Path, default=DIST)
@@ -114,6 +128,10 @@ def main(argv=None):
 
     args = parser.parse_args(argv)
 
+    if args.device_port is not None and not args.device_port.strip():
+        parser.error("--device-port must not be empty")
+    if args.device_baud <= 0:
+        parser.error("--device-baud must be positive")
     if not args.user.strip():
         parser.error("--user must not be empty")
 
@@ -209,13 +227,24 @@ def main(argv=None):
             tasks=tasks,
         )
 
-        runtime = DashboardRuntime(
+        device = None
+        runtime_class = DashboardRuntime
+        runtime_options = {}
+        if args.device_port:
+            device = DeviceLink(args.device_port, args.device_baud)
+            device.start()
+            stack.callback(device.close)
+            runtime_class = DeviceDashboardRuntime
+            runtime_options["device"] = device
+
+        runtime = runtime_class(
             hub,
             session,
             db=args.db,
             log_file=session_log,
             result_timeout=args.result_timeout,
             detection_control=getattr(source, "set_paused", None),
+            **runtime_options,
         )
 
         if source is not None:
@@ -245,14 +274,7 @@ def main(argv=None):
 
                 hub.publish(
                     "system",
-                    {
-                        **status,
-                        "hand_link": {
-                            "status": "disconnected",
-                            "battery_pct": None,
-                        },
-                        "emg_source": "keyboard",
-                    },
+                    runtime_system(status, runtime, device),
                 )
 
         threading.Thread(
@@ -265,6 +287,7 @@ def main(argv=None):
             dist=args.dist,
             on_key=runtime.key,
             on_control=runtime.control,
+            on_key_state=runtime.keyboard_state,
             frames=frames,
             on_shutdown=stack.close,
             history=lambda user: read_history(args.db, user),

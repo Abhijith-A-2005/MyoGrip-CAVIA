@@ -1,5 +1,5 @@
 import type { GestureKey } from "../types/messages";
-import { setHeld } from "./store";
+import { getState, setHeld, subscribe } from "./store";
 import type { Transport } from "./ws";
 
 const KEYS: readonly GestureKey[] = ["w", "a", "s", "d", "e"];
@@ -36,6 +36,22 @@ export function attachKeyboard(transport: Transport) {
   };
 
   const releaseAll = () => [...held].forEach((key) => send(key, false));
+  // Connection/boot changes require a fresh physical key-down, never a held-key replay.
+  const generation = () => {
+    const state = getState();
+    return `${state.link}:${state.system?.controller}:${state.system?.hand_link.status}:${state.system?.keyboard_ready}`;
+  };
+  let currentGeneration = generation();
+  const unsubscribe = subscribe(() => {
+    const next = generation();
+    if (next !== currentGeneration) {
+      currentGeneration = next;
+      releaseAll();
+    }
+  });
+  const heartbeat = window.setInterval(() => {
+    transport.send({ type: "key_state", data: { keys: [...held] } });
+  }, 100);
   const onVisibility = () => document.hidden && releaseAll();
 
   window.addEventListener("keydown", onDown);
@@ -44,6 +60,9 @@ export function attachKeyboard(transport: Transport) {
   document.addEventListener("visibilitychange", onVisibility);
 
   return () => {
+    window.clearInterval(heartbeat);
+    unsubscribe();
+    releaseAll();
     window.removeEventListener("keydown", onDown);
     window.removeEventListener("keyup", onUp);
     window.removeEventListener("blur", releaseAll);

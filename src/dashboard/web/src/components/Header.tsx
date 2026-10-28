@@ -107,7 +107,7 @@ export function Header() {
           <Status
             label="Hand"
             tone={tone(system?.hand_link.status)}
-            detail={battery != null ? `Battery ${battery}%` : undefined}
+            detail={system?.hand_link.detail ?? (battery != null ? `Battery ${battery}%` : undefined)}
           />
           <Status label={LINK_TEXT[link][0]} tone={LINK_TEXT[link][1]} />
         </ul>
