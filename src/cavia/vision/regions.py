@@ -1,5 +1,7 @@
 # regions.py
 
+UNKNOWN_REGION = "unknown"   # published while only the object is locked (stage 1)
+
 FUNCTIONAL_REGIONS = {
     "cup":        ["body", "handle"],     
     "bottle":     ["body", "cap"],                

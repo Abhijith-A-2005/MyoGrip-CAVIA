@@ -71,10 +71,12 @@ def rt():
     runtime.close()
 
 
-def step(rt, seconds=0.05, n=1):
+def step(rt, seconds=0.05, n=1, *, heartbeat=True):
     for _ in range(n):
         rt.test["clock"].t += seconds
         rt.tick(seconds)
+        if heartbeat:
+            rt.keyboard_state(list(rt.app.keys.held))
 
 
 def lock(rt):
@@ -100,6 +102,35 @@ def test_open_publishes_initial_state(rt):
     assert hub.last("menu") is None
     assert hub.last("fsm")["state"] == "HOME"
     assert "session_started" in log_types(rt)
+
+
+def test_two_stage_results_drive_object_then_region_menus(rt):
+    from types import SimpleNamespace
+    from cavia.server.live_vision import TwoStagePipeline
+
+    pipeline = TwoStagePipeline()
+    rectangle = [(200, 100, 440, 400)]
+
+    def latest():
+        detection = SimpleNamespace(cls=[0], conf=[0.95], xyxy=[rectangle[0]])
+        now = rt.test["clock"]()
+        return dict(pipeline.process([detection], {0: "cup"}, (480, 640, 3), now), ts=now)
+
+    rt.test["vision"].latest = latest
+    step(rt, n=6)
+    hub = rt.test["hub"]
+    assert hub.last("menu")["context"]["region"] == "unknown"
+    assert hub.last("vision")["targeting"]["stage"] == "settling"
+    rectangle[0] = (100, 80, 340, 400)
+    step(rt, n=55)
+    assert hub.last("menu")["context"]["region"] == "handle"
+    rectangle[0] = (200, 100, 440, 400)
+    step(rt, n=15)
+    assert hub.last("menu")["context"]["region"] == "body"
+    rt.key("a", True)
+    step(rt, n=10)
+    assert rt.test["paused"] == [True]
+    assert rt.app.frozen
 
 
 def test_vision_lock_produces_menu_and_adaptive_state(rt):
@@ -131,7 +162,9 @@ def test_confirm_closes_pauses_detection_and_learns(rt):
     lock(rt)
     hub = rt.test["hub"]
     rt.key("a", True)
-    step(rt, n=50)                      # 2.5 s of flexion
+    for _ in range(50):                # 2.5 s of flexion with browser heartbeats
+        rt.keyboard_state(["a"])
+        step(rt)
     assert hub.emg_events()[-1] == "LF"
     fsm = hub.last("fsm")
     assert fsm["state"] == "CLOSING" and fsm["grip_progress"] > 0.2 and fsm["active_grip"]
@@ -261,3 +294,31 @@ def test_log_records_mark_the_rest_window(rt):
     end = next(r for r in records if r["type"] == "rest_end")
     assert start["rest"] == 1 and key["rest"] == 1 and end["rest"] is None
     assert end["data"]["rest"] == 1 and end["data"]["duration_s"] >= 0
+
+def test_browser_lease_stops_offline_hold_and_heartbeat_cannot_repress(rt):
+    lock(rt)
+    rt.key("a", True)
+    step(rt)
+    assert rt.app.keys.held == {"a"}
+    for _ in range(10):
+        rt.keyboard_state(["a"])
+        step(rt)
+    assert rt.app.keys.held == {"a"}
+    step(rt, n=10, heartbeat=False)
+    assert not rt.app.keys.held
+    assert rt.test["hub"].last("fsm")["state"] == "HOLDING"
+    rt.keyboard_state(["a"])
+    step(rt)
+    assert not rt.app.keys.held
+    rt.key("a", True)
+    step(rt)
+    assert rt.app.keys.held == {"a"}
+
+
+def test_browser_heartbeat_releases_missing_key(rt):
+    lock(rt)
+    rt.key("a", True)
+    step(rt)
+    rt.keyboard_state([])
+    step(rt)
+    assert not rt.app.keys.held

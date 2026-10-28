@@ -138,6 +138,7 @@ function Timeline({ rows, user }: { rows: HistorySelection[]; user: string }) {
 
 export function HistoryPage() {
   const users = useDashboard((s) => s.users);
+  const controller = useDashboard((s) => s.system?.controller);
   const current = users?.current ?? "";
   const [picked, setPicked] = useState<string | null>(null);
   const viewing = picked ?? users?.current ?? "";
@@ -146,7 +147,7 @@ export function HistoryPage() {
   const [error, setError] = useState("");
 
   // Refetch when the user changes or their counts change (a new selection was learned or cancelled).
-  const version = `${viewing}|${entry?.selections ?? 0}|${entry?.accepted ?? 0}`;
+  const version = `${controller}|${viewing}|${entry?.selections ?? 0}|${entry?.accepted ?? 0}`;
   useEffect(() => {
     if (!viewing) return;
     const abort = new AbortController();

@@ -231,7 +231,7 @@ then incremental messages.
 | `type` | `data` | When |
 |---|---|---|
 | `snapshot` | `{vision, menu, fsm, system, session, users, emg_recent: []}` | once per connection |
-| `vision` | `VisionResult` (§2) **plus** `source` (`XIAO`/`LAPTOP`), `box`, `region_box` | every processed frame |
+| `vision` | `VisionResult` (§2) **plus** `source` (`XIAO`/`LAPTOP`), `box`, `region_box`, optional `targeting` | every processed frame |
 | `menu` | `MenuProposal` (§3), or `null` to clear both menus | on lock, and on return to HOME |
 | `fsm` | `FsmStatus` (§5) **plus** `returning: bool` (HE controlled opening in progress) | every change, ≥10 Hz in actuation |
 | `emg` | `EmgInput` (§4) | each discrete event and each activity change |
@@ -242,6 +242,26 @@ then incremental messages.
 | `notice` | `{action, ok: false, message}` | a control was rejected (not kept in the snapshot) |
 
 `box` and `region_box` are `[x1, y1, x2, y2]` normalised 0..1 in frame coordinates, or `null`.
+Live dashboard results include `targeting` with source-pixel geometry:
+
+```json
+{"stage": "object", "frame_size": [640, 480], "center": [320, 240],
+ "radius": 221, "cross_half_size": 20}
+```
+
+`stage` is `object` (red circle), `settling` (green circle for `STAGE2_DELAY_S`, currently 2 s),
+or `region` (red cross). The backend owns the stage and timer; the browser never guesses them from
+the committed `LOCKED` result. Object lock publishes region `unknown`, then stable regions can replace
+one another within the selected object class before confirmation. Target loss retains the last committed
+context, but overlay boxes are drawn only for matching current detections. HOME, camera session change
+and stale source frames reset targeting to object selection. This selects classes, not object instances.
+
+The browser fits the complete source frame in the 16:9 panel (side bars for a 4:3 camera), so the circle
+is not cropped and source pixels scale equally on both axes. Cross arms use `CROSS_HALF_SIZE`, shared
+with the standalone OpenCV window. Inference pauses after LF while preview continues; the reticle is
+hidden while paused. Legacy replay/mock messages without `targeting` keep a simple centre cross.
+`targeting: null` means no current geometry; malformed geometry is discarded by the feed.
+
 `status` values: `live` / `ok` / `connected`, `degraded`, `stale` / `down` / `disconnected`.
 
 **Ordering rule:** send the `emg` message for a gesture **before** the `fsm` update it causes. The

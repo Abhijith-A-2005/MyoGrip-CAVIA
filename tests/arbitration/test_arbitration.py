@@ -96,6 +96,12 @@ class ArbitrationTests(unittest.TestCase):
         self.assertEqual(d.ranking_source, "region")
         self.assertEqual(d.proposal.items[0], Grip.PINCH)
 
+    def test_bottle_body_has_two_compatible_grips(self):
+        d = self.proposal("body", object="bottle")
+        self.assertEqual(d.proposal.items, [Grip.POWER, Grip.TRIPOD])
+        self.assertEqual(d.proposal.policy, MenuPolicy.FULL_COMPATIBLE)
+        self.assertNotEqual(d.reason, "single_compatible_grip")
+
     def test_sparse_region_uses_object_fallback(self):
         self.learn("LATERAL", region="body", n=8)
         self.learn("PINCH", n=1)
@@ -154,7 +160,8 @@ class ArbitrationTests(unittest.TestCase):
         self.assertEqual(len(d.compatible), 3)
 
     def test_single_candidate_is_not_learned_shortcut(self):
-        d = self.proposal("body", object="bottle")
+        # Book/cover_face still has exactly one compatible grip.
+        d = self.proposal("cover_face", object="book")
         self.assertEqual(d.proposal.items, [Grip.POWER])
         self.assertEqual(d.proposal.policy, MenuPolicy.FULL_COMPATIBLE)
         self.assertEqual(d.reason, "single_compatible_grip")

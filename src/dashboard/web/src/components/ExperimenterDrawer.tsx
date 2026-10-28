@@ -5,6 +5,7 @@ import { useRestSeconds } from "../state/rest";
 import { useDashboard } from "../state/store";
 import { setDrawer, useDrawer } from "../state/ui";
 import type { Condition, TaskInfo } from "../types/messages";
+import { DeviceCalibration } from "./DeviceCalibration";
 import "./ExperimenterDrawer.css";
 
 const CONDITIONS: Condition[] = ["C1_MANUAL", "C2_STATIC", "C3_ADAPTIVE"];
@@ -114,6 +115,8 @@ export function ExperimenterDrawer() {
             </svg>
           </button>
         </header>
+
+        <DeviceCalibration />
 
         <section className="drawer-group">
           <h3 className="drawer-group-title">Session</h3>

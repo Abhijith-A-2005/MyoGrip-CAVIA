@@ -16,6 +16,14 @@ export type HealthStatus =
 /** [x1, y1, x2, y2], normalised 0..1 in frame coordinates. */
 export type Box = [number, number, number, number];
 
+export type Targeting = {
+  stage: "object" | "settling" | "region";
+  frame_size: [number, number];
+  center: [number, number];
+  radius: number;
+  cross_half_size: number;
+};
+
 export type VisionMsg = {
   ts: number;
   frame_seq: number;
@@ -30,6 +38,7 @@ export type VisionMsg = {
   source?: "XIAO" | "LAPTOP";
   box?: Box | null;
   region_box?: Box | null;
+  targeting?: Targeting | null;
 };
 
 export type MenuMsg = {
@@ -60,7 +69,7 @@ export type FsmMsg = {
 
 export type EmgMsg = {
   ts: number;
-  source: "device" | "keyboard" | "replay";
+  source: "device" | "keyboard" | "replay" | "both";
   event?: EmgEvent;
   activity?: Activity;
 };
@@ -69,7 +78,13 @@ export type SystemMsg = {
   /** latency_ms 0 = not measured (hidden in the UI). */
   camera: { status: HealthStatus; source: "XIAO" | "LAPTOP"; fps: number; latency_ms: number };
   vision: { status: HealthStatus; model: string };
-  hand_link: { status: HealthStatus; battery_pct: number | null };
+  hand_link: { status: HealthStatus; battery_pct: number | null; detail?: string;
+    calibrated?: boolean; armed?: boolean; calibration?: string; calibration_log?: string[] };
+  controller?: "firmware" | "keyboard";
+  device_configured?: boolean;
+  fallback_reason?: string;
+  keyboard_ready?: boolean;
+  calibration_mode?: boolean;
   emg_source: "device" | "keyboard" | "replay";
 };
 
@@ -157,6 +172,8 @@ export type ServerMessage =
 export type GestureKey = "w" | "a" | "s" | "d" | "e";
 
 export type ControlAction =
+  | { action: "device_setup"; enabled: boolean }
+  | { action: "device_command"; command: "r" | "f" | "e" | "h" | "v" | "x" | "?" }
   | { action: "start_trial"; task_id: string | null; practice: boolean }
   | { action: "end_trial"; grasp_success: boolean; notes: string }
   | { action: "start_rest" }
@@ -166,4 +183,5 @@ export type ControlAction =
 
 export type ClientMessage =
   | { type: "key"; data: { key: GestureKey; down: boolean } }
+  | { type: "key_state"; data: { keys: GestureKey[] } }
   | { type: "control"; data: ControlAction };

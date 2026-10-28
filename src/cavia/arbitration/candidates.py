@@ -18,7 +18,7 @@ REGION_GRIPS: dict[str, dict[str, tuple[Grip, ...]]] = {
         "handle": (L, I),
     },
     "bottle": {
-        "body": (P,),
+        "body": (P, T),
         "cap": (T, I),
     },
     "toothbrush": {
